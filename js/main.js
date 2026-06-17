@@ -57,6 +57,7 @@ class Game {
         this.frames = 0;
         this.lastFpsTime = performance.now();
         this.breakTimer = 0;
+        this.attackCooldownTimer = 0;
         this.isPaused = false;
 
         // UI start is handled in window.onload
@@ -99,9 +100,10 @@ class Game {
         this.engine.scene.fog = new THREE.Fog(this.planetParams.skyColor || 0x87ceeb, renderDistBlocks * 0.75, renderDistBlocks);
         
         // Block outline
-        const outlineGeo = new THREE.BoxGeometry(1.02, 1.02, 1.02);
+        this.outlineGeoLarge = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.02, 1.02, 1.02));
+        this.outlineGeoSmall = new THREE.EdgesGeometry(new THREE.BoxGeometry(0.4, 0.4, 0.4));
         const outlineMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
-        this.blockOutline = new THREE.LineSegments(new THREE.EdgesGeometry(outlineGeo), outlineMat);
+        this.blockOutline = new THREE.LineSegments(this.outlineGeoLarge, outlineMat);
         this.engine.scene.add(this.blockOutline);
         this.blockOutline.visible = false;
 
@@ -321,13 +323,13 @@ class Game {
                     }
                 }
                 this.input.mouse.leftClick = false; // single cast
-            } else if (entityHit.hit && this.breakTimer === 0) { // Attack entity
+            } else if (entityHit.hit && this.attackCooldownTimer === 0) { // Attack entity
                 entityHit.mob.takeDamage(this.player.equippedWand ? 10 : 5, lookDir);
                 this.audio.playHit();
                 this.particles.emit(entityHit.mob.position, 'blood', 5, 0xff0000);
                 this.input.mouse.leftClick = false; // single attack per click
-                this.breakTimer = 0.5; // attack cooldown reuse breakTimer
-            } else if (hit.hit && this.breakTimer >= 0) { // Mine block
+                this.attackCooldownTimer = 0.5; // attack cooldown
+            } else if (hit.hit && this.attackCooldownTimer === 0) { // Mine block
                 this.breakTimer += dt;
                 
                 // Breaking particles (cracks)
@@ -366,10 +368,8 @@ class Game {
         if (hit.hit && !entityHit.hit) {
             const props = getBlockProperties(hit.blockType);
             const isSmall = props.isCross || hit.blockType === BLOCKS.TORCH || hit.blockType === BLOCKS.DEAD_BUSH || hit.blockType === BLOCKS.MUSHROOM_STEM;
-            const size = isSmall ? 0.4 : 1.02;
             
-            this.blockOutline.geometry.dispose();
-            this.blockOutline.geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(size, size, size));
+            this.blockOutline.geometry = isSmall ? this.outlineGeoSmall : this.outlineGeoLarge;
             
             if (isSmall) {
                 this.blockOutline.position.set(hit.blockPos.x + 0.5, hit.blockPos.y + 0.2, hit.blockPos.z + 0.5);
@@ -443,6 +443,8 @@ class Game {
         }
 
         if (this.input.isPointerLocked()) {
+            if (this.attackCooldownTimer > 0) this.attackCooldownTimer = Math.max(0, this.attackCooldownTimer - dt);
+
             // Footsteps
             if (this.player.grounded && (this.input.keys.forward || this.input.keys.backward || this.input.keys.left || this.input.keys.right)) {
                 this.footstepTimer = (this.footstepTimer || 0) + dt;
@@ -471,11 +473,27 @@ class Game {
         
         this.input.resetMouse();
 
+        if (!this.bobPhase) this.bobPhase = 0;
+        
+        if (this.player.grounded && (this.input.keys.forward || this.input.keys.backward || this.input.keys.left || this.input.keys.right)) {
+            const speed = this.input.keys.sprint ? 15 : 10;
+            this.bobPhase += dt * speed;
+        } else {
+            // Decay back to neutral
+            this.bobPhase *= Math.pow(0.5, dt * 10);
+        }
+        
+        const bobOffset = Math.sin(this.bobPhase) * 0.08; // Subtle bob
+
         // Update Camera to match player eyes
         const eyePos = this.player.getEyePosition();
         this.engine.camera.position.copy(eyePos);
+        this.engine.camera.position.y += Math.abs(bobOffset); // Upward bounce
+        
         const lookDir = this.player.getLookDirection();
         this.engine.camera.lookAt(eyePos.clone().add(lookDir));
+        // Add subtle tilt based on bob
+        this.engine.camera.rotateZ(bobOffset * 0.1);
         // Check Portal Warp
         const pbx = Math.floor(this.player.position.x);
         const pby = Math.floor(this.player.position.y);
@@ -513,19 +531,19 @@ class Game {
         this.entityManager.update(dt, this.world, this.player.position, this.player.inventory, this.player);
         this.projectileManager.update(dt, (proj) => {
             let hitFound = false;
-            let hitPos = proj.position.clone();
+            let hitPos = proj.position; // no need to clone here if just reading
 
             // Check entities
-            const eHit = this.entityManager.raycast(proj.position, proj.velocity.clone().normalize(), dt * proj.stats.speed + 0.5);
+            const eHit = this.entityManager.raycast(proj.position, proj.velocity, dt * proj.stats.speed + 0.5);
             if (eHit.hit && eHit.mob) {
                 hitFound = true;
-                hitPos = eHit.mob.position.clone();
+                hitPos = eHit.mob.position;
                 if (proj.stats.element === 'ICE') {
-                    eHit.mob.takeDamage(proj.stats.damage, proj.velocity.clone().normalize());
+                    eHit.mob.takeDamage(proj.stats.damage, proj.velocity);
                     eHit.mob.freeze(3.0); // 3 seconds freeze
                 } else if (proj.stats.element !== 'FIRE') {
                     // Normal hit
-                    eHit.mob.takeDamage(proj.stats.damage, proj.velocity.clone().normalize());
+                    eHit.mob.takeDamage(proj.stats.damage, proj.velocity);
                 }
             }
 
@@ -562,6 +580,9 @@ class Game {
         });
 
         // Render
+        if (this.atlas && this.atlas.updateAnimatedTextures) {
+            this.atlas.updateAnimatedTextures(time);
+        }
         this.engine.renderer.render(this.engine.scene, this.engine.camera);
         this.ui.updateHUD(this.player, this.fps, this.atlas);
 

@@ -759,18 +759,19 @@ export class ItemEntity {
 
     getMesh() {
         if (!this.mesh) {
-            const geo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-            let mat;
             if (this.item.type === 'block') {
                 const iconCanvas = this.atlas.getBlockIcon(this.item.subtype);
                 const tex = new THREE.CanvasTexture(iconCanvas);
                 tex.magFilter = THREE.NearestFilter;
                 tex.colorSpace = THREE.SRGBColorSpace;
-                mat = new THREE.MeshBasicMaterial({ map: tex });
+                const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+                this.mesh = new THREE.Sprite(mat);
+                this.mesh.scale.set(0.4, 0.4, 0.4);
             } else {
-                mat = new THREE.MeshBasicMaterial({ color: 0xffaa00 }); // generic item color
+                const geo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                const mat = new THREE.MeshBasicMaterial({ color: 0xffaa00 }); // generic item color
+                this.mesh = new THREE.Mesh(geo, mat);
             }
-            this.mesh = new THREE.Mesh(geo, mat);
             this.mesh.position.copy(this.position);
         }
         return this.mesh;
@@ -799,7 +800,9 @@ export class ItemEntity {
             this.mesh.position.copy(this.position);
             // Floating animation
             this.mesh.position.y += Math.sin(this.age * 3) * 0.1 + 0.15;
-            this.mesh.rotation.y += dt;
+            if (this.mesh.rotation) {
+                this.mesh.rotation.y += dt;
+            }
         }
 
         // Pickup range
@@ -811,9 +814,11 @@ export class ItemEntity {
     dispose() {
         if (this.mesh) {
             if (this.mesh.parent) this.mesh.parent.remove(this.mesh);
-            this.mesh.geometry.dispose();
-            this.mesh.material.dispose();
-            if (this.mesh.material.map) this.mesh.material.map.dispose();
+            if (this.mesh.geometry) this.mesh.geometry.dispose();
+            if (this.mesh.material) {
+                this.mesh.material.dispose();
+                if (this.mesh.material.map) this.mesh.material.map.dispose();
+            }
         }
     }
 }

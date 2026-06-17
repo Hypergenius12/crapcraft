@@ -219,7 +219,7 @@ export class Chunk {
         this.dirty = true;
     }
 
-    buildMesh(atlas, getNeighborBlock) {
+    buildMesh(atlas, materials, getNeighborBlock) {
         const positions = [];
         const normals = [];
         const uvs = [];
@@ -339,59 +339,11 @@ export class Chunk {
         geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
         geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
 
-        // Use MeshLambertMaterial for classic Minecraft voxel shading style
-        const matOpaque = new THREE.MeshLambertMaterial({ 
-            map: atlas.texture, 
-            vertexColors: true,
-            transparent: false,
-            alphaTest: 0.5,
-            side: THREE.DoubleSide
-        });
-
-        const matCross = new THREE.MeshLambertMaterial({
-            map: atlas.texture,
-            vertexColors: true,
-            transparent: false,
-            alphaTest: 0.5,
-            side: THREE.DoubleSide
-        });
-
-        const matGlowCross = new THREE.MeshLambertMaterial({
-            map: atlas.texture,
-            vertexColors: true,
-            transparent: false,
-            alphaTest: 0.5,
-            side: THREE.DoubleSide,
-            emissive: new THREE.Color(0xffffff),
-            emissiveMap: atlas.texture,
-            emissiveIntensity: 1.0
-        });
-
-        const matWater = new THREE.MeshLambertMaterial({
-            map: atlas.texture,
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.8,
-            side: THREE.DoubleSide
-        });
-        
-        const matTransparent = new THREE.MeshLambertMaterial({
-            map: atlas.texture,
-            vertexColors: true,
-            transparent: true,
-            alphaTest: 0.5,
-            side: THREE.DoubleSide
-        });
-        
-        const materials = [matOpaque, matCross, matGlowCross, matWater, matTransparent];
+        // Use cached materials passed from World
 
         if (this.mesh) {
             this.mesh.geometry.dispose();
-            if (Array.isArray(this.mesh.material)) {
-                this.mesh.material.forEach(m => m.dispose());
-            } else {
-                this.mesh.material.dispose();
-            }
+            // Do not dispose shared materials
             this.mesh.geometry = geometry;
             this.mesh.material = materials;
         } else {
@@ -408,11 +360,7 @@ export class Chunk {
         if (this.mesh) {
             if (this.mesh.parent) this.mesh.parent.remove(this.mesh);
             this.mesh.geometry.dispose();
-            if (Array.isArray(this.mesh.material)) {
-                this.mesh.material.forEach(m => m.dispose());
-            } else {
-                this.mesh.material.dispose();
-            }
+            // Do not dispose shared materials
             this.mesh = null;
         }
     }
@@ -473,8 +421,27 @@ export class World {
         this.chunksToBuild = [];
         
         // Fluid tick queue
-        this.liquidUpdates = new Set(); // Stores strings of "x,y,z"
+        this.liquidUpdates = new Map(); // Stores object {x, y, z} using string key to avoid duplicates
         this.tickTimer = 0;
+
+        // Shared Chunk Materials
+        const matOpaque = new THREE.MeshLambertMaterial({ 
+            map: atlas.texture, vertexColors: true, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide
+        });
+        const matCross = new THREE.MeshLambertMaterial({
+            map: atlas.texture, vertexColors: true, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide
+        });
+        const matGlowCross = new THREE.MeshLambertMaterial({
+            map: atlas.texture, vertexColors: true, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide,
+            emissive: new THREE.Color(0xffffff), emissiveMap: atlas.texture, emissiveIntensity: 1.0
+        });
+        const matWater = new THREE.MeshLambertMaterial({
+            map: atlas.texture, vertexColors: true, transparent: true, opacity: 0.8, side: THREE.DoubleSide
+        });
+        const matTransparent = new THREE.MeshLambertMaterial({
+            map: atlas.texture, vertexColors: true, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide
+        });
+        this.chunkMaterials = [matOpaque, matCross, matGlowCross, matWater, matTransparent];
     }
 
     setRenderDistance(d) {
@@ -554,16 +521,15 @@ export class World {
         const t = this.getBlock(x, y, z);
         const props = getBlockProperties(t);
         if (props.isLiquid) {
-            this.liquidUpdates.add(`${x},${y},${z}`);
+            this.liquidUpdates.set(`${x},${y},${z}`, {x, y, z});
         }
     }
 
     tickFluids() {
-        const updates = Array.from(this.liquidUpdates);
+        const updates = Array.from(this.liquidUpdates.values());
         this.liquidUpdates.clear();
         
-        for (const key of updates) {
-            const [x, y, z] = key.split(',').map(Number);
+        for (const {x, y, z} of updates) {
             const type = this.getBlock(x, y, z);
             const props = getBlockProperties(type);
             
@@ -690,7 +656,7 @@ export class World {
         while (this.chunksToBuild.length > 0 && buildsThisFrame < 2) {
             const chunk = this.chunksToBuild.pop();
             if (chunk.dirty) {
-                const mesh = chunk.buildMesh(this.atlas, (wx, wy, wz) => this.getBlock(wx, wy, wz));
+                const mesh = chunk.buildMesh(this.atlas, this.chunkMaterials, (wx, wy, wz) => this.getBlock(wx, wy, wz));
                 if (mesh && !mesh.parent) {
                     this.scene.add(mesh);
                 }

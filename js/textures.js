@@ -692,7 +692,7 @@ function generateBlockTexture(ctx, blockType, face, rng) {
 
 function hasFaceVariants(blockType) {
     return [
-        BLOCKS.GRASS, BLOCKS.WOOD, BLOCKS.MUSHROOM_STEM, BLOCKS.SAVANNA_GRASS, BLOCKS.ACACIA_WOOD, BLOCKS.SWAMP_GRASS, BLOCKS.ALIEN_GRASS
+        BLOCKS.GRASS, BLOCKS.WOOD, BLOCKS.MUSHROOM_STEM, BLOCKS.SAVANNA_GRASS, BLOCKS.ACACIA_WOOD, BLOCKS.SWAMP_GRASS, BLOCKS.ALIEN_GRASS, BLOCKS.PORTAL_FRAME
     ].includes(blockType);
 }
 
@@ -747,10 +747,23 @@ export function createTextureAtlas() {
 
     const rng = seededRandom(42);
 
+    const animatedFrames = [];
+
     for (const entry of entries) {
         tmpCtx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
         generateBlockTexture(tmpCtx, entry.blockType, entry.face === 'all' ? 'side' : entry.face, rng);
         ctx.drawImage(tmp, entry.col * TEX_SIZE, entry.row * TEX_SIZE);
+
+        if (entry.blockType === BLOCKS.WATER || entry.blockType === BLOCKS.LAVA || entry.blockType === BLOCKS.SWAMP_WATER) {
+            const fCanvas = document.createElement('canvas');
+            fCanvas.width = TEX_SIZE; fCanvas.height = TEX_SIZE;
+            fCanvas.getContext('2d').drawImage(tmp, 0, 0);
+            animatedFrames.push({
+                x: entry.col * TEX_SIZE,
+                y: entry.row * TEX_SIZE,
+                canvas: fCanvas
+            });
+        }
     }
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -850,5 +863,20 @@ export function createTextureAtlas() {
         return iconCanvas;
     }
 
-    return { texture, getUV, atlasW, atlasH, totalRows, getBlockIcon };
+    function updateAnimatedTextures(time) {
+        if (animatedFrames.length === 0) return;
+        const shift = Math.floor(time * 0.005) % TEX_SIZE;
+        if (texture.userData.lastShift === shift) return;
+        texture.userData.lastShift = shift;
+
+        for (const frame of animatedFrames) {
+            tmpCtx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
+            tmpCtx.drawImage(frame.canvas, 0, shift);
+            tmpCtx.drawImage(frame.canvas, 0, shift - TEX_SIZE);
+            ctx.drawImage(tmp, frame.x, frame.y);
+        }
+        texture.needsUpdate = true;
+    }
+
+    return { texture, getUV, atlasW, atlasH, totalRows, getBlockIcon, updateAnimatedTextures };
 }

@@ -20,7 +20,9 @@ const BIOMES = {
     VOLCANIC: { name: 'Volcanic', surface: BLOCKS.OBSIDIAN, dirt: BLOCKS.STONE, freq: 0.5, hasTrees: false },
     SWAMP: { name: 'Swamp', surface: BLOCKS.SWAMP_GRASS, dirt: BLOCKS.MUD, freq: 0.6, hasTrees: true, swampFlora: true },
     JUNGLE: { name: 'Jungle', surface: BLOCKS.GRASS, dirt: BLOCKS.DIRT, freq: 0.7, hasTrees: true, jungleFlora: true },
-    SAVANNA: { name: 'Savanna', surface: BLOCKS.SAVANNA_GRASS, dirt: BLOCKS.DIRT, freq: 0.8, hasTrees: true, savannaFlora: true }
+    SAVANNA: { name: 'Savanna', surface: BLOCKS.SAVANNA_GRASS, dirt: BLOCKS.DIRT, freq: 0.8, hasTrees: true, savannaFlora: true },
+    MOUNTAINS: { name: 'Mountains', surface: BLOCKS.SNOW, dirt: BLOCKS.STONE, freq: 0.4, hasTrees: true },
+    DEEP_OCEAN: { name: 'Deep Ocean', surface: BLOCKS.SAND, dirt: BLOCKS.STONE, freq: 0.3, hasTrees: false }
 };
 
 export class PlanetParams {
@@ -81,10 +83,10 @@ function getColumnInfo(wx, wz, params, noise2D, tempNoise, moistNoise) {
     } else if (isCold) {
         if (isDry) biome = (colRng() > 0.8) ? BIOMES.VOLCANIC : BIOMES.TUNDRA;
         else if (isWet) biome = BIOMES.ICE_SPIKES;
-        else biome = BIOMES.TUNDRA;
+        else biome = BIOMES.MOUNTAINS;
     } else { // Moderate temp
         if (isDry) biome = (colRng() > 0.8) ? BIOMES.MUSHROOM : BIOMES.PLAINS;
-        else if (isWet) biome = (colRng() > 0.6) ? BIOMES.ALIEN : BIOMES.CRYSTAL;
+        else if (isWet) biome = (colRng() > 0.8) ? BIOMES.DEEP_OCEAN : (colRng() > 0.5 ? BIOMES.ALIEN : BIOMES.CRYSTAL);
         else biome = BIOMES.FOREST;
     }
 
@@ -102,10 +104,14 @@ function getColumnInfo(wx, wz, params, noise2D, tempNoise, moistNoise) {
         heightMultiplier = 0.8;
     } else if (biome === BIOMES.ICE_SPIKES || biome === BIOMES.BADLANDS) {
         heightMultiplier = 1.5; // Jagged terrain
+    } else if (biome === BIOMES.MOUNTAINS) {
+        heightMultiplier = 3.0; // Huge peaks
     }
 
     if (biome === BIOMES.SWAMP) {
         baseOffset = -5; // Sink swamp closer to sea level
+    } else if (biome === BIOMES.DEEP_OCEAN) {
+        baseOffset = -15; // Deep underwater
     }
 
     const surfaceY = Math.floor(params.baseHeight + baseOffset + (hNoise * params.terrainHeight * heightMultiplier));
@@ -204,8 +210,10 @@ export function generateChunkTerrain(cx, cz, params) {
                 } else if (biome.alienFlora && r < 0.15) {
                     safeSetBlock(blocks, tx, surfaceY + 1, tz, BLOCKS.ALIEN_TALL_GRASS);
                 } else if (r < 0.001) {
-                    generatePortalStructure(blocks, tx, surfaceY + 1, tz);
-                } else if (biome.name !== 'Desert' && biome.name !== 'Badlands' && biome.name !== 'Volcanic' && biome.name !== 'Ice Spikes') {
+                    generatePortalStructure(blocks, tx, surfaceY + 1, tz, floraRng);
+                } else if (r < 0.002 && (biome === BIOMES.FOREST || biome === BIOMES.PLAINS || biome === BIOMES.TUNDRA)) {
+                    generateCabin(blocks, tx, surfaceY + 1, tz, floraRng);
+                } else if (biome.name !== 'Desert' && biome.name !== 'Badlands' && biome.name !== 'Volcanic' && biome.name !== 'Ice Spikes' && biome.name !== 'Deep Ocean') {
                     // Add standard ground flora (Reverted to normal density)
                     if (r > 0.05 && r < 0.2) {
                         safeSetBlock(blocks, tx, surfaceY + 1, tz, floraRng() > 0.3 ? BLOCKS.TALL_GRASS : BLOCKS.FERN);
@@ -452,15 +460,56 @@ function carveRoomInChunk(blocks, cx, cz, room) {
     }
 }
 
-export function generatePortalStructure(blocks, x, y, z) {
-    // 4x5 portal
+export function generatePortalStructure(blocks, x, y, z, rng) {
+    // 4x5 ruined portal
     for (let px = x; px < x + 4; px++) {
         for (let py = y; py < y + 5; py++) {
+            // More degraded frame
+            if (rng() < 0.3) continue; // missing blocks
+            
             if (px === x || px === x + 3 || py === y || py === y + 4) {
-                safeSetBlock(blocks, px, py, z, BLOCKS.PORTAL_FRAME);
+                safeSetBlock(blocks, px, py, z, rng() < 0.2 ? BLOCKS.OBSIDIAN : BLOCKS.PORTAL_FRAME);
             } else {
-                safeSetBlock(blocks, px, py, z, BLOCKS.PORTAL);
+                if (rng() < 0.4) safeSetBlock(blocks, px, py, z, BLOCKS.PORTAL);
             }
+        }
+    }
+    // Netherrack base
+    for (let px = x - 1; px < x + 5; px++) {
+        for (let pz = z - 2; pz < z + 3; pz++) {
+            if (rng() < 0.6) safeSetBlock(blocks, px, y - 1, pz, BLOCKS.ALIEN_STONE); // Use alien stone as netherrack proxy
+        }
+    }
+}
+
+export function generateCabin(blocks, x, y, z, rng) {
+    // 5x5 cabin
+    for (let py = y; py < y + 4; py++) {
+        for (let px = x - 2; px <= x + 2; px++) {
+            for (let pz = z - 2; pz <= z + 2; pz++) {
+                const isWall = px === x - 2 || px === x + 2 || pz === z - 2 || pz === z + 2;
+                if (isWall) {
+                    if (py === y + 1 && (px === x || pz === z) && rng() < 0.5) {
+                        safeSetBlock(blocks, px, py, pz, BLOCKS.GLASS); // Window
+                    } else if (py === y && px === x && pz === z - 2) {
+                        safeSetBlock(blocks, px, py, pz, BLOCKS.AIR); // Door
+                    } else if (py === y + 1 && px === x && pz === z - 2) {
+                        safeSetBlock(blocks, px, py, pz, BLOCKS.AIR); // Door top
+                    } else {
+                        safeSetBlock(blocks, px, py, pz, BLOCKS.WOOD); // Wall
+                    }
+                } else if (py === y + 3) {
+                    safeSetBlock(blocks, px, py, pz, BLOCKS.PLANKS); // Roof
+                } else {
+                    safeSetBlock(blocks, px, py, pz, BLOCKS.AIR); // Inside
+                }
+            }
+        }
+    }
+    // Floor
+    for (let px = x - 1; px <= x + 1; px++) {
+        for (let pz = z - 1; pz <= z + 1; pz++) {
+            safeSetBlock(blocks, px, y - 1, pz, BLOCKS.PLANKS);
         }
     }
 }
