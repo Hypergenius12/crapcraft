@@ -83,6 +83,7 @@ class Game {
         this.torchSystem = new TorchLightSystem(this.engine.scene);
         this.particles = new ParticleSystem(this.engine.scene);
         this.audio = new AudioManager();
+        this.audio.camera = this.engine.camera;
         
         // Entities
         this.player = new Player();
@@ -305,27 +306,23 @@ class Game {
                 const wandIndex = this.player.activeSpellIndex || 0;
                 const castInfo = slot.item.data.wand.cast(wandIndex, this.player);
                 if (castInfo) {
-                    if (castInfo.stats.element === 'HEAL') {
-                        this.player.health = Math.min(this.player.maxHealth, this.player.health + Math.abs(castInfo.stats.damage));
-                    }
-                    this.particles.emit(eyePos, 'magic', 10, castInfo.spell.color);
-                    this.audio.playCast();
-                    for (let i = 0; i < castInfo.stats.count; i++) {
-                        let projDir = lookDir.clone();
-                        if (castInfo.stats.count > 1) {
-                            projDir.x += (Math.random() - 0.5) * 0.2;
-                            projDir.y += (Math.random() - 0.5) * 0.2;
-                            projDir.z += (Math.random() - 0.5) * 0.2;
-                            projDir.normalize();
+                    this._fireSpell(castInfo);
+                    
+                    // Spell Combo logic
+                    if (castInfo.stats.castTwo) {
+                        const nextIndex = (wandIndex + 1) % slot.item.data.wand.maxSlots;
+                        const castInfo2 = slot.item.data.wand.cast(nextIndex, this.player);
+                        if (castInfo2) {
+                            setTimeout(() => {
+                                if (this.player.health > 0) this._fireSpell(castInfo2);
+                            }, 150); // Small delay for combo
                         }
-                        const proj = new SpellProjectile(eyePos, projDir, castInfo.stats, castInfo.spell.color);
-                        this.projectileManager.add(proj);
                     }
                 }
                 this.input.mouse.leftClick = false; // single cast
             } else if (entityHit.hit && this.attackCooldownTimer === 0) { // Attack entity
                 entityHit.mob.takeDamage(this.player.equippedWand ? 10 : 5, lookDir);
-                this.audio.playHit();
+                this.audio.playHit(entityHit.mob.position);
                 this.particles.emit(entityHit.mob.position, 'blood', 5, 0xff0000);
                 this.input.mouse.leftClick = false; // single attack per click
                 this.attackCooldownTimer = 0.5; // attack cooldown
@@ -353,7 +350,7 @@ class Game {
                     }
 
                     this.particles.emit(hit.position, 'block_break', 15);
-                    this.audio.playBreak();
+                    this.audio.playBreak(blockType); // Pass blockType not position for break since playBreak doesn't take position yet, wait playBreak doesn't take position in audio.js. Let's leave it.
                     this.breakTimer = 0;
                     this.blockOutline.scale.set(1, 1, 1);
                 }
@@ -403,6 +400,28 @@ class Game {
                 }
             }
             this.input.mouse.rightClick = false; // single action
+        }
+    }
+
+    _fireSpell(castInfo) {
+        const eyePos = this.player.getEyePosition();
+        const lookDir = this.player.getLookDirection();
+        
+        if (castInfo.stats.element === 'HEAL') {
+            this.player.health = Math.min(this.player.maxHealth, this.player.health + Math.abs(castInfo.stats.damage));
+        }
+        this.particles.emit(eyePos, 'magic', 10, castInfo.spell.color);
+        this.audio.playCast(eyePos);
+        for (let i = 0; i < castInfo.stats.count; i++) {
+            let projDir = lookDir.clone();
+            if (castInfo.stats.count > 1) {
+                projDir.x += (Math.random() - 0.5) * 0.2;
+                projDir.y += (Math.random() - 0.5) * 0.2;
+                projDir.z += (Math.random() - 0.5) * 0.2;
+                projDir.normalize();
+            }
+            const proj = new SpellProjectile(eyePos, projDir, castInfo.stats, castInfo.spell.color);
+            this.projectileManager.add(proj);
         }
     }
 
@@ -538,6 +557,7 @@ class Game {
             if (eHit.hit && eHit.mob) {
                 hitFound = true;
                 hitPos = eHit.mob.position;
+                this.audio.playHit(hitPos); // Positional audio for magic hitting a mob
                 if (proj.stats.element === 'ICE') {
                     eHit.mob.takeDamage(proj.stats.damage, proj.velocity);
                     eHit.mob.freeze(3.0); // 3 seconds freeze

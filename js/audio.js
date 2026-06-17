@@ -8,6 +8,7 @@ export class AudioManager {
     constructor() {
         this.ctx = null;
         this.masterGain = null;
+        this.camera = null;
     }
 
     _ensureContext() {
@@ -18,7 +19,7 @@ export class AudioManager {
         this.masterGain.connect(this.ctx.destination);
     }
 
-    playTone(freq, type, duration, vol = 1.0, slide = 0) {
+    playTone(freq, type, duration, vol = 1.0, slide = 0, position = null) {
         this._ensureContext();
         if (this.ctx.state === 'suspended') this.ctx.resume();
         const osc = this.ctx.createOscillator();
@@ -34,13 +35,13 @@ export class AudioManager {
         gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
         
         osc.connect(gain);
-        gain.connect(this.masterGain);
+        this._connectWithPanner(gain, position);
         
         osc.start();
         osc.stop(this.ctx.currentTime + duration);
     }
 
-    playNoise(duration, vol = 1.0) {
+    playNoise(duration, vol = 1.0, position = null) {
         this._ensureContext();
         if (this.ctx.state === 'suspended') this.ctx.resume();
         const bufferSize = this.ctx.sampleRate * duration;
@@ -65,9 +66,51 @@ export class AudioManager {
         
         noiseSource.connect(filter);
         filter.connect(gain);
-        gain.connect(this.masterGain);
+        this._connectWithPanner(gain, position);
         
         noiseSource.start();
+    }
+
+    _connectWithPanner(sourceNode, position) {
+        if (position && this.camera) {
+            const panner = this.ctx.createPanner();
+            panner.panningModel = 'HRTF';
+            panner.distanceModel = 'inverse';
+            panner.refDistance = 1;
+            panner.maxDistance = 50;
+            panner.rolloffFactor = 1;
+            
+            panner.positionX.value = position.x;
+            panner.positionY.value = position.y;
+            panner.positionZ.value = position.z;
+
+            if (this.ctx.listener && this.ctx.listener.positionX) {
+                this.ctx.listener.positionX.value = this.camera.position.x;
+                this.ctx.listener.positionY.value = this.camera.position.y;
+                this.ctx.listener.positionZ.value = this.camera.position.z;
+                
+                // Hacky way to get forward vector for Three.js camera
+                const vector = new THREE.Vector3(0, 0, -1);
+                vector.applyQuaternion(this.camera.quaternion);
+                
+                if (this.ctx.listener.forwardX) {
+                    this.ctx.listener.forwardX.value = vector.x;
+                    this.ctx.listener.forwardY.value = vector.y;
+                    this.ctx.listener.forwardZ.value = vector.z;
+                    
+                    const up = new THREE.Vector3(0, 1, 0);
+                    up.applyQuaternion(this.camera.quaternion);
+                    this.ctx.listener.upX.value = up.x;
+                    this.ctx.listener.upY.value = up.y;
+                    this.ctx.listener.upZ.value = up.z;
+                }
+            }
+            
+            sourceNode.connect(panner);
+            panner.connect(this.masterGain);
+        } else {
+            sourceNode.connect(this.masterGain);
+        }
     }
 
     playFootstep(blockType) {
@@ -113,21 +156,21 @@ export class AudioManager {
         }
     }
 
-    playHit() {
-        this.playNoise(0.12, 0.4);
-        this.playTone(200, 'square', 0.1, 0.3, -100);
+    playHit(position = null) {
+        this.playNoise(0.12, 0.4, position);
+        this.playTone(200, 'square', 0.1, 0.3, -100, position);
     }
 
     playClick() {
         this.playTone(800, 'sine', 0.05, 0.2);
     }
 
-    playCast() {
-        this.playTone(600, 'sine', 0.3, 0.3, 400);
+    playCast(position = null) {
+        this.playTone(600, 'sine', 0.3, 0.3, 400, position);
     }
 
-    playHurt() {
-        this.playNoise(0.2, 0.6);
-        this.playTone(100, 'sawtooth', 0.2, 0.4, -50);
+    playHurt(position = null) {
+        this.playNoise(0.2, 0.6, position);
+        this.playTone(100, 'sawtooth', 0.2, 0.4, -50, position);
     }
 }
