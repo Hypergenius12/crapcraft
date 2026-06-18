@@ -75,8 +75,11 @@ class ChestVisual {
     }
 
     update(dt) {
+        const safeDt = Math.max(0.001, Math.min(dt, 0.1));
         this.targetAngle = this.isOpen ? -Math.PI / 2.5 : 0;
-        this.lidAngle += (this.targetAngle - this.lidAngle) * 10 * dt;
+        const diff = this.targetAngle - this.lidAngle;
+        this.lidAngle += diff * Math.min(10 * safeDt, 1.0);
+        if (Math.abs(this.lidAngle - this.targetAngle) < 0.01) this.lidAngle = this.targetAngle;
         this.lidMesh.rotation.x = this.lidAngle;
     }
 
@@ -1003,7 +1006,7 @@ Chunks: ${this.world.chunks.size} | Mobs: ${this.entityManager.mobs.length} | Re
 
 // Start game on load
 window.onload = () => {
-    const game = new Game();
+    const game = new Game(); window.game = game;
     const startBtn = document.getElementById('btn-new-game');
     if (startBtn) {
         startBtn.onclick = () => {
