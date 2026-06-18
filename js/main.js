@@ -880,9 +880,9 @@ class Game {
             const rx = window.innerWidth - mapSize - padding;
             const ry = window.innerHeight - mapSize - padding;
             
-            // Tilt the camera for a 2.5D map look (isometric-ish orthographic)
-            this.minimapCamera.position.set(this.player.position.x, this.player.position.y + 100, this.player.position.z + 40);
-            this.minimapCamera.lookAt(this.player.position.x, this.player.position.y, this.player.position.z);
+            // Tilt the camera for a 2.5D map look but fixed height to avoid jump parallax
+            this.minimapCamera.position.set(this.player.position.x, 250, this.player.position.z + 40);
+            this.minimapCamera.lookAt(this.player.position.x, 0, this.player.position.z);
             
             this.engine.renderer.setViewport(rx, ry, mapSize, mapSize);
             this.engine.renderer.setScissor(rx, ry, mapSize, mapSize);
@@ -904,8 +904,8 @@ class Game {
             const arrow = document.getElementById('minimap-player-arrow');
             if (arrow) {
                 const lookDir = this.player.getLookDirection();
-                const angle = Math.atan2(lookDir.x, lookDir.z); 
-                arrow.style.transform = `rotate(${angle + Math.PI}rad)`;
+                const angle = Math.atan2(lookDir.x, -lookDir.z); 
+                arrow.style.transform = `rotate(${angle}rad)`;
             }
             
             this.engine.scene.fog = oldFog;
