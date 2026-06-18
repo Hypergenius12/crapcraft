@@ -932,7 +932,7 @@ class Game {
                 const hit = this.world.raycast(eyePos, lookDir, 8);
                 const lookBlockName = hit.hit ? `${getBlockName(hit.blockType)} [${hit.blockPos.x}, ${hit.blockPos.y}, ${hit.blockPos.z}]` : 'None';
                 
-                di.innerHTML = `Voxel Odyssey (Debug Mode)<br>
+                di.innerHTML = `SlopCraft 3D (Debug Mode)<br>
 FPS: ${this.fps}<br>
 XYZ: ${this.player.position.x.toFixed(2)}, ${this.player.position.y.toFixed(2)}, ${this.player.position.z.toFixed(2)}<br>
 Biome: ${biome}<br>
