@@ -71,7 +71,19 @@ export const BLOCKS = {
     GLOW_SHROOM: 62,
     PALM_WOOD: 63,
     PALM_LEAVES: 64,
-    OASIS_FERN: 65
+    OASIS_FERN: 65,
+    DUNGEON_FIRE_BRICK: 66,
+    DUNGEON_FIRE_FLOOR: 67,
+    DUNGEON_ICE_BRICK: 68,
+    DUNGEON_ICE_FLOOR: 69,
+    DUNGEON_JUNGLE_BRICK: 70,
+    DUNGEON_JUNGLE_FLOOR: 71,
+    DUNGEON_DESERT_BRICK: 72,
+    DUNGEON_DESERT_FLOOR: 73,
+    DUNGEON_UNDEAD_BRICK: 74,
+    DUNGEON_UNDEAD_FLOOR: 75,
+    DUNGEON_DOOR: 76,
+    BOSS_SPAWNER: 77
 };
 
 // Block properties
@@ -141,7 +153,19 @@ const BLOCK_PROPS = {
     [BLOCKS.GLOW_SHROOM]:   { name: 'Glow Shroom',    health: 1, transparent: true,  emissive: 0.8, solid: false, isCross: true, drops: null },
     [BLOCKS.PALM_WOOD]:     { name: 'Palm Wood',      health: 5, transparent: false, emissive: 0, solid: true, drops: null },
     [BLOCKS.PALM_LEAVES]:   { name: 'Palm Leaves',    health: 1, transparent: true,  emissive: 0, solid: true, drops: null },
-    [BLOCKS.OASIS_FERN]:    { name: 'Oasis Fern',     health: 1, transparent: true,  emissive: 0, solid: false, isCross: true, drops: null }
+    [BLOCKS.OASIS_FERN]:    { name: 'Oasis Fern',     health: 1, transparent: true,  emissive: 0, solid: false, isCross: true, drops: null },
+    [BLOCKS.DUNGEON_FIRE_BRICK]: { name: 'Fire Brick', health: 12, transparent: false, emissive: 0.1, solid: true, drops: null },
+    [BLOCKS.DUNGEON_FIRE_FLOOR]: { name: 'Fire Floor', health: 12, transparent: false, emissive: 0.2, solid: true, drops: null },
+    [BLOCKS.DUNGEON_ICE_BRICK]:  { name: 'Ice Brick',  health: 12, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.DUNGEON_ICE_FLOOR]:  { name: 'Ice Floor',  health: 12, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.DUNGEON_JUNGLE_BRICK]:{name: 'Jungle Brick',health: 12, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.DUNGEON_JUNGLE_FLOOR]:{name: 'Jungle Floor',health: 12, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.DUNGEON_DESERT_BRICK]:{name: 'Desert Brick',health: 12, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.DUNGEON_DESERT_FLOOR]:{name: 'Desert Floor',health: 12, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.DUNGEON_UNDEAD_BRICK]:{name: 'Undead Brick',health: 12, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.DUNGEON_UNDEAD_FLOOR]:{name: 'Undead Floor',health: 12, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.DUNGEON_DOOR]:  { name: 'Dungeon Door',   health: 5, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.BOSS_SPAWNER]:  { name: 'Boss Spawner',   health: Infinity, transparent: true, emissive: 0, solid: false, drops: null }
 };
 
 export function getBlockProperties(type) {
@@ -503,12 +527,67 @@ function generateBlockTexture(ctx, blockType, face, rng) {
         case BLOCKS.DUNGEON_FLOOR:
             fillBase(ctx, 50, 48, 55);
             addNoise(ctx, rng, 12);
-            // Tile pattern
             ctx.fillStyle = 'rgba(35,33,40,0.5)';
             ctx.fillRect(0, 0, TEX_SIZE, 1);
             ctx.fillRect(0, 8, TEX_SIZE, 1);
             ctx.fillRect(0, 0, 1, TEX_SIZE);
             ctx.fillRect(8, 0, 1, TEX_SIZE);
+            break;
+        case BLOCKS.DUNGEON_FIRE_BRICK:
+            fillBase(ctx, 90, 30, 20);
+            drawBricks(ctx, rng, 'rgba(50,15,10,0.8)', 15);
+            break;
+        case BLOCKS.DUNGEON_FIRE_FLOOR:
+            fillBase(ctx, 80, 25, 15); addNoise(ctx, rng, 10);
+            ctx.fillStyle = 'rgba(40,10,5,0.6)'; ctx.fillRect(0,0,TEX_SIZE,1); ctx.fillRect(0,8,TEX_SIZE,1); ctx.fillRect(0,0,1,TEX_SIZE); ctx.fillRect(8,0,1,TEX_SIZE);
+            break;
+        case BLOCKS.DUNGEON_ICE_BRICK:
+            fillBase(ctx, 120, 180, 220);
+            drawBricks(ctx, rng, 'rgba(80,120,160,0.8)', 10);
+            break;
+        case BLOCKS.DUNGEON_ICE_FLOOR:
+            fillBase(ctx, 110, 160, 200); addNoise(ctx, rng, 10);
+            ctx.fillStyle = 'rgba(60,100,140,0.6)'; ctx.fillRect(0,0,TEX_SIZE,1); ctx.fillRect(0,8,TEX_SIZE,1); ctx.fillRect(0,0,1,TEX_SIZE); ctx.fillRect(8,0,1,TEX_SIZE);
+            break;
+        case BLOCKS.DUNGEON_JUNGLE_BRICK:
+            fillBase(ctx, 50, 70, 50);
+            drawBricks(ctx, rng, 'rgba(25,45,25,0.8)', 15);
+            break;
+        case BLOCKS.DUNGEON_JUNGLE_FLOOR:
+            fillBase(ctx, 40, 60, 40); addNoise(ctx, rng, 10);
+            ctx.fillStyle = 'rgba(20,35,20,0.6)'; ctx.fillRect(0,0,TEX_SIZE,1); ctx.fillRect(0,8,TEX_SIZE,1); ctx.fillRect(0,0,1,TEX_SIZE); ctx.fillRect(8,0,1,TEX_SIZE);
+            break;
+        case BLOCKS.DUNGEON_DESERT_BRICK:
+            fillBase(ctx, 180, 160, 100);
+            drawBricks(ctx, rng, 'rgba(120,100,60,0.8)', 12);
+            break;
+        case BLOCKS.DUNGEON_DESERT_FLOOR:
+            fillBase(ctx, 160, 140, 80); addNoise(ctx, rng, 10);
+            ctx.fillStyle = 'rgba(100,80,40,0.6)'; ctx.fillRect(0,0,TEX_SIZE,1); ctx.fillRect(0,8,TEX_SIZE,1); ctx.fillRect(0,0,1,TEX_SIZE); ctx.fillRect(8,0,1,TEX_SIZE);
+            break;
+        case BLOCKS.DUNGEON_UNDEAD_BRICK:
+            fillBase(ctx, 40, 40, 45);
+            drawBricks(ctx, rng, 'rgba(20,20,25,0.9)', 18);
+            break;
+        case BLOCKS.DUNGEON_UNDEAD_FLOOR:
+            fillBase(ctx, 35, 35, 40); addNoise(ctx, rng, 10);
+            ctx.fillStyle = 'rgba(15,15,20,0.6)'; ctx.fillRect(0,0,TEX_SIZE,1); ctx.fillRect(0,8,TEX_SIZE,1); ctx.fillRect(0,0,1,TEX_SIZE); ctx.fillRect(8,0,1,TEX_SIZE);
+            break;
+        case BLOCKS.DUNGEON_DOOR:
+            fillBase(ctx, 70, 50, 30);
+            addNoise(ctx, rng, 5);
+            ctx.fillStyle = 'rgba(40, 25, 10, 0.8)'; // Frame
+            ctx.fillRect(0, 0, TEX_SIZE, 2);
+            ctx.fillRect(0, 0, 2, TEX_SIZE);
+            ctx.fillRect(TEX_SIZE - 2, 0, 2, TEX_SIZE);
+            ctx.fillRect(0, TEX_SIZE - 2, TEX_SIZE, 2);
+            // Iron bands
+            ctx.fillStyle = 'rgba(30,30,30,0.9)';
+            ctx.fillRect(0, 4, TEX_SIZE, 2);
+            ctx.fillRect(0, 10, TEX_SIZE, 2);
+            break;
+        case BLOCKS.BOSS_SPAWNER:
+            ctx.clearRect(0,0,TEX_SIZE,TEX_SIZE); // Invisible
             break;
         case BLOCKS.MUSHROOM_STEM:
             fillBase(ctx, 200, 190, 170);

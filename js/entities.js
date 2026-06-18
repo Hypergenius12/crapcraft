@@ -25,6 +25,7 @@ export class Item {
     static wandItem(wand) { return new Item('wand', 'wand', { wand }, wand.name); }
     static spellItem(spell) { return new Item('spell', spell.type, { spell }, spell.name); }
     static modifierItem(mod) { return new Item('modifier', mod.type, { mod }, mod.name, mod.rarity); }
+    static equipmentItem(subType, equipData, name, desc) { return new Item('equipment', subType, { equipData }, name, desc); }
 }
 
 export class Inventory {
@@ -119,8 +120,19 @@ export class Player {
         const forward = new THREE.Vector3(-Math.sin(this.rotation.yaw), 0, -Math.cos(this.rotation.yaw)).normalize();
         const right = new THREE.Vector3(Math.cos(this.rotation.yaw), 0, -Math.sin(this.rotation.yaw)).normalize();
 
+        // Equipment Effects
+        let speedMult = 1.0;
+        let flying = false;
+        
+        // Boots
+        const boots = this.inventory.armor[3];
+        if (boots && boots.item.data.equipData) {
+            if (boots.item.data.equipData.speedMult) speedMult = boots.item.data.equipData.speedMult;
+            if (boots.item.data.equipData.flying) flying = true;
+        }
+
         // Movement input
-        const speed = keys.sprint ? 8 : 5;
+        const speed = (keys.sprint ? 8 : 5) * speedMult;
         let moveDir = new THREE.Vector3(0,0,0);
         
         if (keys.forward) moveDir.add(forward);
@@ -159,7 +171,10 @@ export class Player {
 
         // Jumping
         if (keys.jump) {
-            if (this.grounded) {
+            if (flying) {
+                this.velocity.y += 35 * dt;
+                if (this.velocity.y > 10) this.velocity.y = 10; // Cap fly speed
+            } else if (this.grounded) {
                 this.velocity.y = 9; // Normal jump force for regular ground
                 this.grounded = false;
             } else if (inWater || inLava) {
@@ -223,7 +238,18 @@ export class Player {
 
     takeDamage(amt) {
         if (this.health <= 0) return true;
-        this.health -= amt;
+        
+        let protection = 0;
+        // Sum protection from armor slots
+        for (let i = 0; i < 4; i++) {
+            const piece = this.inventory.armor[i];
+            if (piece && piece.item.data.equipData && piece.item.data.equipData.protection) {
+                protection += piece.item.data.equipData.protection;
+            }
+        }
+        
+        const damageTaken = Math.max(0.5, amt - protection);
+        this.health -= damageTaken;
         return this.health <= 0;
     }
 
@@ -1444,6 +1470,32 @@ export class EntityManager {
     }
 
     update(dt, world, playerPos, playerInventory, player) {
+        // Boss spawner detection
+        this.bossScanTimer = (this.bossScanTimer || 0) + dt;
+        if (this.bossScanTimer > 2.0) {
+            this.bossScanTimer = 0;
+            const px = Math.floor(playerPos.x);
+            const py = Math.floor(playerPos.y);
+            const pz = Math.floor(playerPos.z);
+            for (let x = -16; x <= 16; x++) {
+                for (let y = -16; y <= 16; y++) {
+                    for (let z = -16; z <= 16; z++) {
+                        if (world.getBlock(px+x, py+y, pz+z) === BLOCKS.BOSS_SPAWNER) {
+                            world.setBlock(px+x, py+y, pz+z, BLOCKS.AIR);
+                            // Determine boss type based on surrounding blocks (theme)
+                            let themeBlock = world.getBlock(px+x, py+y-1, pz+z);
+                            let bossType = 'GOLEM';
+                            if (themeBlock === BLOCKS.DUNGEON_FIRE_FLOOR) bossType = 'WISP'; // Or fire boss
+                            else if (themeBlock === BLOCKS.DUNGEON_ICE_FLOOR) bossType = 'WISP';
+                            // Spawn Boss!
+                            const boss = new Boss(bossType, new THREE.Vector3(px+x, py+y, pz+z));
+                            this.addMob(boss);
+                        }
+                    }
+                }
+            }
+        }
+
         // Mob Spawning with timer
         this.spawnTimer += dt;
         if (this.spawnTimer > 2.0 && this.mobs.length < 20) {
@@ -1498,19 +1550,26 @@ export class EntityManager {
                 // Drop spell or modifier
                 if (Math.random() < (mob.config.lootChance || 0.3)) {
                     if (Math.random() < 0.7) {
-                        this.spawnItem(
-                            Item.spellItem(generateRandomSpell()),
-                            1,
-                            mob.position.clone()
-                        );
+                        this.spawnItem(Item.spellItem(generateRandomSpell()), 1, mob.position.clone());
                     } else {
-                        this.spawnItem(
-                            Item.modifierItem(generateRandomModifier()),
-                            1,
-                            mob.position.clone()
-                        );
+                        this.spawnItem(Item.modifierItem(generateRandomModifier()), 1, mob.position.clone());
                     }
                 }
+                
+                // Boss Loot
+                if (mob.isBoss) {
+                    const r = Math.random();
+                    if (r < 0.25) {
+                        this.spawnItem(Item.equipmentItem('chestplate', { protection: 5 }, 'Boss Armor', 'Wearable armor that reduces damage.'), 1, mob.position.clone());
+                    } else if (r < 0.5) {
+                        this.spawnItem(Item.equipmentItem('boots', { flying: true }, 'Flying Boots', 'Allows you to fly.'), 1, mob.position.clone());
+                    } else if (r < 0.75) {
+                        this.spawnItem(Item.equipmentItem('boots', { speedMult: 2.5 }, 'Speed Boots', 'Run super fast.'), 1, mob.position.clone());
+                    } else {
+                        this.spawnItem(Item.equipmentItem('axe', { mineSpeed: 5.0 }, 'Super Mine Axe', 'Mines blocks instantly.'), 1, mob.position.clone());
+                    }
+                }
+
                 mob.justDied = false;
             }
 

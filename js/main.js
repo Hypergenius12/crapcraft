@@ -360,7 +360,13 @@ class Game {
                 if (Math.random() < 0.2) this.particles.emit(hit.position, 'block_break', 1, 0x555555);
 
                 const blockProps = getBlockProperties(hit.blockType);
-                const breakTime = (blockProps.health || 1) * 0.1;
+                
+                let mineMult = 1.0;
+                if (slot && slot.item.type === 'equipment' && slot.item.data.equipData && slot.item.data.equipData.mineSpeed) {
+                    mineMult = slot.item.data.equipData.mineSpeed;
+                }
+                
+                const breakTime = ((blockProps.health || 1) * 0.1) / mineMult;
                 
                 this.miningOverlay.visible = true;
                 this.miningOverlay.position.set(hit.blockPos.x + 0.5, hit.blockPos.y + 0.5, hit.blockPos.z + 0.5);

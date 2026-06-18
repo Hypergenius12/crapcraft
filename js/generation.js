@@ -558,6 +558,16 @@ function generateCactus(blocks, x, y, z, rng) {
 // Dungeon Generation
 // ============================================
 
+const DUNGEON_THEMES = [
+    { brick: BLOCKS.DUNGEON_BRICK, floor: BLOCKS.DUNGEON_FLOOR, name: 'normal' },
+    { brick: BLOCKS.DUNGEON_FIRE_BRICK, floor: BLOCKS.DUNGEON_FIRE_FLOOR, name: 'fire' },
+    { brick: BLOCKS.DUNGEON_ICE_BRICK, floor: BLOCKS.DUNGEON_ICE_FLOOR, name: 'ice' },
+    { brick: BLOCKS.DUNGEON_JUNGLE_BRICK, floor: BLOCKS.DUNGEON_JUNGLE_FLOOR, name: 'jungle' },
+    { brick: BLOCKS.DUNGEON_DESERT_BRICK, floor: BLOCKS.DUNGEON_DESERT_FLOOR, name: 'desert' },
+    { brick: BLOCKS.DUNGEON_UNDEAD_BRICK, floor: BLOCKS.DUNGEON_UNDEAD_FLOOR, name: 'undead' }
+];
+
+
 function carveGlobalDungeons(blocks, cx, cz, params) {
     const searchRadius = 3; // Reduced from 6 to eliminate huge lag spikes
     for (let sx = cx - searchRadius; sx <= cx + searchRadius; sx++) {
@@ -567,10 +577,13 @@ function carveGlobalDungeons(blocks, cx, cz, params) {
             const startRng = seededRandom(hashSeed(seedStr));
             
             if (startRng() < params.dungeonFrequency * 0.1) { // reduced frequency since they are huge
+                const themeIndex = Math.floor(startRng() * DUNGEON_THEMES.length);
+                const theme = DUNGEON_THEMES[themeIndex];
                 const rooms = generateDungeonStructure(startRng, sx * CHUNK_SIZE + 8, 15, sz * CHUNK_SIZE + 8);
                 
                 // Carve any room that intersects the current chunk (cx, cz)
                 for (const room of rooms) {
+                    room.theme = theme;
                     carveRoomInChunk(blocks, cx, cz, room);
                 }
             }
@@ -632,9 +645,14 @@ function generateDungeonStructure(rng, startX, startY, startZ) {
                 queue.push({ x: nx, y: current.y + (Math.floor(rng()*3)-1)*2, z: nz, w: 7 + Math.floor(rng()*4), h: 5, d: 7 + Math.floor(rng()*4), depth: current.depth + 1, bossChance: current.bossChance });
                 
                 // Add corridor room connecting them
-                const mx = (current.x + nx) / 2;
-                const mz = (current.z + nz) / 2;
+                const mx = Math.floor((current.x + nx) / 2);
+                const mz = Math.floor((current.z + nz) / 2);
                 rooms.push({ x: mx, y: current.y, z: mz, w: dir <= 1 ? branchLen : 3, h: 4, d: dir > 1 ? branchLen : 3, type: 'corridor' });
+                
+                // Add door at the entrance of the corridor
+                const dx = current.x + (dir===0 ? Math.floor(current.w/2) : (dir===1 ? -Math.floor(current.w/2) : 0));
+                const dz = current.z + (dir===2 ? Math.floor(current.d/2) : (dir===3 ? -Math.floor(current.d/2) : 0));
+                rooms.push({ x: dx, y: current.y, z: dz, w: dir <= 1 ? 1 : 3, h: 3, d: dir > 1 ? 1 : 3, type: 'door' });
             }
         }
     }
@@ -669,6 +687,13 @@ function carveRoomInChunk(blocks, cx, cz, room) {
                 const lx = wx - cMinX;
                 const lz = wz - cMinZ;
                 
+                if (room.type === 'door') {
+                    if (wy >= minY && wy < minY + 3) {
+                        safeSetBlock(blocks, lx, wy, lz, BLOCKS.DUNGEON_DOOR);
+                    }
+                    continue;
+                }
+
                 const isWall = (wx === minX || wx === maxX || wz === minZ || wz === maxZ || wy === minY || wy === Math.min(maxY, CHUNK_HEIGHT - 1));
                 
                 if (isWall) {
@@ -676,8 +701,9 @@ function carveRoomInChunk(blocks, cx, cz, room) {
                     else {
                         // Degraded dungeon walls
                         const wallRng = Math.random();
-                        if (wallRng < 0.15) safeSetBlock(blocks, lx, wy, lz, BLOCKS.COBBLESTONE);
-                        else safeSetBlock(blocks, lx, wy, lz, BLOCKS.DUNGEON_BRICK);
+                        if (wy === minY) safeSetBlock(blocks, lx, wy, lz, room.theme.floor);
+                        else if (wallRng < 0.15) safeSetBlock(blocks, lx, wy, lz, BLOCKS.COBBLESTONE);
+                        else safeSetBlock(blocks, lx, wy, lz, room.theme.brick);
                     }
                 } else {
                     if (room.type === 'entrance' && wy <= minY + 2) {
@@ -686,6 +712,12 @@ function carveRoomInChunk(blocks, cx, cz, room) {
                     } else {
                         safeSetBlock(blocks, lx, wy, lz, BLOCKS.AIR);
                     }
+                    
+                    // Boss Spawner
+                    if (room.type === 'boss' && wy === minY + 1 && wx === Math.floor((minX+maxX)/2) && wz === Math.floor((minZ+maxZ)/2)) {
+                        safeSetBlock(blocks, lx, wy, lz, BLOCKS.BOSS_SPAWNER);
+                    }
+                    
                     // Add glowstone lighting occasionally
                     if (room.type === 'boss' && wy === maxY - 1 && (wx === minX+2 || wx === maxX-2) && (wz === minZ+2 || wz === maxZ-2)) {
                         safeSetBlock(blocks, lx, wy, lz, ((lx + wy + lz) % 2 === 0) ? BLOCKS.GLOWSTONE : BLOCKS.PORTAL_FRAME);
