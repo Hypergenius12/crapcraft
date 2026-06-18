@@ -125,6 +125,12 @@ class Game {
         this.engine.scene.add(this.engine.camera); // Needed for child objects to render
         this.heldItemMesh = null;
 
+        // Minimap Camera
+        const d = 40; // minimap view half-size in blocks
+        this.minimapCamera = new THREE.OrthographicCamera(-d, d, d, -d, 1, 1000);
+        this.minimapCamera.position.set(0, 150, 0);
+        this.minimapCamera.lookAt(0, 0, 0);
+
         this.input.requestPointerLock();
         this.isReady = true;
 
@@ -137,6 +143,18 @@ class Game {
         document.getElementById('btn-quit').onclick = () => {
             location.reload(); // Simple quit
         };
+
+        const fovSlider = document.getElementById('fov-slider');
+        const fovVal = document.getElementById('fov-val');
+        if (fovSlider) {
+            fovSlider.addEventListener('input', (e) => {
+                const val = parseInt(e.target.value);
+                if(fovVal) fovVal.textContent = val;
+                this.engine.camera.fov = val;
+                this.engine.camera.updateProjectionMatrix();
+            });
+        }
+
 
         // Settings Handlers
         const slider = document.getElementById('render-distance-slider');
@@ -604,7 +622,47 @@ class Game {
         if (this.atlas && this.atlas.updateAnimatedTextures) {
             this.atlas.updateAnimatedTextures(time);
         }
+        
+        // 1. Main Render Pass
+        this.engine.renderer.autoClear = false;
+        this.engine.renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+        this.engine.renderer.setScissorTest(false);
+        this.engine.renderer.clear();
         this.engine.renderer.render(this.engine.scene, this.engine.camera);
+
+        // 2. Minimap Render Pass
+        if (this.minimapCamera && !this.ui.isOpen) {
+            const mapSize = 200;
+            const padding = 20;
+            const rx = window.innerWidth - mapSize - padding;
+            const ry = window.innerHeight - mapSize - padding;
+            
+            this.minimapCamera.position.set(this.player.position.x, this.player.position.y + 150, this.player.position.z);
+            this.minimapCamera.lookAt(this.player.position.x, this.player.position.y, this.player.position.z);
+            
+            this.engine.renderer.setViewport(rx, ry, mapSize, mapSize);
+            this.engine.renderer.setScissor(rx, ry, mapSize, mapSize);
+            this.engine.renderer.setScissorTest(true);
+            
+            // Clear color and depth so minimap has a clean background (sky color or black)
+            this.engine.renderer.clear(); 
+            
+            this.viewModel.visible = false; // Don't render hands in minimap
+            
+            // Optional: disable fog for minimap so we can see clearly
+            const oldFog = this.engine.scene.fog;
+            this.engine.scene.fog = null;
+            
+            this.engine.renderer.render(this.engine.scene, this.minimapCamera);
+            
+            this.engine.scene.fog = oldFog;
+            this.viewModel.visible = true;
+            this.engine.renderer.setScissorTest(false);
+            
+            // Reset viewport for UI
+            this.engine.renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+        }
+
         this.ui.updateHUD(this.player, this.fps, this.atlas);
 
         // Update HUD bars

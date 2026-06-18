@@ -332,10 +332,19 @@ function generateBlockTexture(ctx, blockType, face, rng) {
             addPixels(ctx, rng, 'rgba(160, 160, 160, 0.5)', 20);
             break;
         case BLOCKS.SAND:
-            fillBase(ctx, 219, 209, 160);
-            addNoise(ctx, rng, 10);
-            addPixels(ctx, rng, 'rgba(180, 170, 120, 0.8)', 30);
-            addPixels(ctx, rng, 'rgba(240, 230, 180, 0.6)', 20);
+            const sandId = ctx.createImageData(TEX_SIZE, TEX_SIZE);
+            for (let i = 0; i < sandId.data.length; i += 4) {
+                let r = 225, g = 215, b = 170;
+                const noise = (rng() - 0.5) * 25;
+                sandId.data[i] = Math.min(255, Math.max(0, r + noise));
+                sandId.data[i+1] = Math.min(255, Math.max(0, g + noise));
+                sandId.data[i+2] = Math.min(255, Math.max(0, b + noise));
+                sandId.data[i+3] = 255;
+            }
+            ctx.putImageData(sandId, 0, 0);
+            // Add a few larger grain specs for detail
+            addPixels(ctx, rng, 'rgba(190, 180, 130, 0.8)', 15);
+            addPixels(ctx, rng, 'rgba(250, 240, 200, 0.6)', 15);
             break;
         case BLOCKS.WATER:
             ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
