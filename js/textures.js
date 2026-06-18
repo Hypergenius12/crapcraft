@@ -990,11 +990,22 @@ function generateBlockTexture(ctx, blockType, face, rng) {
             }
             break;
         case BLOCKS.CHERRY_LEAVES:
-            fillBase(ctx, 255, 180, 200);
-            addNoise(ctx, rng, 20);
-            addPixels(ctx, rng, 'rgba(255, 140, 180, 0.8)', 60); // darker pink leaves
-            for (let i = 0; i < 40; i++) {
-                ctx.clearRect((rng() * TEX_SIZE)|0, (rng() * TEX_SIZE)|0, 1, 1);
+            ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
+            // Draw leafy clusters instead of solid background
+            for (let i = 0; i < 150; i++) {
+                const x = (rng() * TEX_SIZE) | 0;
+                const y = (rng() * TEX_SIZE) | 0;
+                const shade = rng();
+                if (shade < 0.3) {
+                    ctx.fillStyle = 'rgba(230, 140, 160, 0.9)'; // deep shadow pink
+                } else if (shade < 0.6) {
+                    ctx.fillStyle = 'rgba(255, 170, 190, 0.9)'; // midtone pink
+                } else {
+                    ctx.fillStyle = 'rgba(255, 200, 220, 0.9)'; // highlight pink
+                }
+                const w = 1 + (rng() * 2) | 0;
+                const h = 1 + (rng() * 2) | 0;
+                ctx.fillRect(x, y, w, h);
             }
             break;
         case BLOCKS.PINK_PETALS:
@@ -1019,11 +1030,21 @@ function generateBlockTexture(ctx, blockType, face, rng) {
             }
             break;
         case BLOCKS.AUTUMN_LEAVES:
-            fillBase(ctx, 220, 100, 20);
-            addNoise(ctx, rng, 20);
-            addPixels(ctx, rng, 'rgba(255, 150, 20, 0.8)', 60); // Yellow/orange leaves
-            for (let i = 0; i < 40; i++) {
-                ctx.clearRect((rng() * TEX_SIZE)|0, (rng() * TEX_SIZE)|0, 1, 1);
+            ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
+            for (let i = 0; i < 150; i++) {
+                const x = (rng() * TEX_SIZE) | 0;
+                const y = (rng() * TEX_SIZE) | 0;
+                const shade = rng();
+                if (shade < 0.3) {
+                    ctx.fillStyle = 'rgba(180, 60, 10, 0.9)'; // deep shadow orange/red
+                } else if (shade < 0.6) {
+                    ctx.fillStyle = 'rgba(220, 100, 20, 0.9)'; // midtone orange
+                } else {
+                    ctx.fillStyle = 'rgba(255, 150, 40, 0.9)'; // highlight yellow/orange
+                }
+                const w = 1 + (rng() * 2) | 0;
+                const h = 1 + (rng() * 2) | 0;
+                ctx.fillRect(x, y, w, h);
             }
             break;
         case BLOCKS.FALLEN_LEAVES:
@@ -1043,11 +1064,21 @@ function generateBlockTexture(ctx, blockType, face, rng) {
             addStripes(ctx, rng, 'rgba(10, 200, 200, 0.4)', 'v', 5); // glowing lines
             break;
         case BLOCKS.GLOW_LEAVES:
-            fillBase(ctx, 10, 120, 120);
-            addNoise(ctx, rng, 15);
-            addPixels(ctx, rng, 'rgba(0, 255, 255, 0.8)', 50); // glowing spots
-            for (let i = 0; i < 40; i++) {
-                ctx.clearRect((rng() * TEX_SIZE)|0, (rng() * TEX_SIZE)|0, 1, 1);
+            ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
+            for (let i = 0; i < 150; i++) {
+                const x = (rng() * TEX_SIZE) | 0;
+                const y = (rng() * TEX_SIZE) | 0;
+                const shade = rng();
+                if (shade < 0.3) {
+                    ctx.fillStyle = 'rgba(5, 80, 80, 0.9)'; // deep shadow
+                } else if (shade < 0.6) {
+                    ctx.fillStyle = 'rgba(10, 120, 120, 0.9)'; // midtone
+                } else {
+                    ctx.fillStyle = 'rgba(0, 255, 255, 0.9)'; // glowing spots
+                }
+                const w = 1 + (rng() * 2) | 0;
+                const h = 1 + (rng() * 2) | 0;
+                ctx.fillRect(x, y, w, h);
             }
             break;
         case BLOCKS.GLOW_SHROOM:
@@ -1071,11 +1102,21 @@ function generateBlockTexture(ctx, blockType, face, rng) {
             }
             break;
         case BLOCKS.PALM_LEAVES:
-            fillBase(ctx, 80, 180, 60);
-            addNoise(ctx, rng, 20);
-            addPixels(ctx, rng, 'rgba(40, 120, 20, 0.8)', 30);
-            for (let i = 0; i < 40; i++) {
-                ctx.clearRect((rng() * TEX_SIZE)|0, (rng() * TEX_SIZE)|0, 1, 1);
+            ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
+            for (let i = 0; i < 150; i++) {
+                const x = (rng() * TEX_SIZE) | 0;
+                const y = (rng() * TEX_SIZE) | 0;
+                const shade = rng();
+                if (shade < 0.3) {
+                    ctx.fillStyle = 'rgba(30, 90, 30, 0.9)'; // deep shadow
+                } else if (shade < 0.6) {
+                    ctx.fillStyle = 'rgba(80, 180, 60, 0.9)'; // midtone
+                } else {
+                    ctx.fillStyle = 'rgba(110, 210, 80, 0.9)'; // highlight
+                }
+                const w = 1 + (rng() * 2) | 0;
+                const h = 1 + (rng() * 2) | 0;
+                ctx.fillRect(x, y, w, h);
             }
             break;
         case BLOCKS.OASIS_FERN:

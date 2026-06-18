@@ -148,6 +148,7 @@ export class Player {
         const blockIn = world.getBlock(this.position.x, this.position.y + 0.1, this.position.z);
         const inWater = blockIn === BLOCKS.WATER || blockIn === BLOCKS.SWAMP_WATER;
         const inLava = blockIn === BLOCKS.LAVA;
+        const onLadder = blockIn === BLOCKS.LADDER;
 
         if (inLava && Math.random() < dt * 4) {
             this.takeDamage(5);
@@ -157,9 +158,14 @@ export class Player {
 
         // Physics variables
         // Make the player much more floaty in water (lower gravity)
-        const gravity = (inWater || inLava) ? -1.5 : -25;
-        const drag = (inWater || inLava) ? 6 : 10;
-        const jumpForce = (inWater || inLava) ? 3.5 : 9;
+        let gravity = (inWater || inLava) ? -1.5 : -25;
+        let drag = (inWater || inLava) ? 6 : 10;
+        let jumpForce = (inWater || inLava) ? 3.5 : 9;
+        
+        if (onLadder) {
+            gravity = 0; // Cancel gravity on ladder
+            drag = 15; // Higher drag so you stop quickly
+        }
 
         // X/Z velocity update
         this.velocity.x += moveDir.x * speed * 10 * dt;
@@ -172,8 +178,16 @@ export class Player {
         // Y velocity update (gravity)
         this.velocity.y += gravity * dt;
 
-        // Jumping
-        if (keys.jump) {
+        // Jumping and Climbing
+        if (onLadder) {
+            if (keys.jump) {
+                this.velocity.y = 3.5;
+            } else if (keys.crouch) {
+                this.velocity.y = -3.5;
+            } else {
+                this.velocity.y -= this.velocity.y * drag * dt; // Stop vertical movement if not climbing
+            }
+        } else if (keys.jump) {
             if (flying) {
                 this.velocity.y += 35 * dt;
                 if (this.velocity.y > 10) this.velocity.y = 10; // Cap fly speed
@@ -309,6 +323,47 @@ function createBodyPart(geo, color, emissive = 0x000000, emissiveIntensity = 0) 
 // ============================================
 
 export const MOB_TYPES = {
+    SHEEP: {
+        name: 'Sheep', health: 15, damage: 0, speed: 2.5, hostile: false, color: 0xffffff,
+        size: 0.8, xpDrop: 2, lootChance: 1.0,
+        buildMesh: () => {
+            const group = new THREE.Group();
+            // Body (wool)
+            const bodyGeo = new THREE.BoxGeometry(0.8, 0.6, 1.2);
+            const bodyMat = new THREE.MeshLambertMaterial({ color: 0xdddddd });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.5;
+            group.add(body);
+            // Head
+            const headGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+            const headMat = new THREE.MeshLambertMaterial({ color: 0xeebb99 });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.set(0, 0.7, -0.7);
+            group.add(head);
+            // Legs
+            const legGeo = new THREE.BoxGeometry(0.2, 0.4, 0.2);
+            const legMat = new THREE.MeshLambertMaterial({ color: 0xeebb99 });
+            for(let i=0; i<4; i++) {
+                const leg = new THREE.Mesh(legGeo, legMat);
+                leg.position.set((i%2===0?-0.3:0.3), 0.2, (i<2?-0.4:0.4));
+                group.add(leg);
+            }
+            return group;
+        },
+        animate: (mesh, dt, age, isMoving) => {
+            if (!isMoving) {
+                // Reset legs
+                for(let i=2; i<6; i++) mesh.children[i].rotation.x = 0;
+            } else {
+                // Walk cycle
+                const swing = Math.sin(age * 8) * 0.4;
+                mesh.children[2].rotation.x = swing;
+                mesh.children[3].rotation.x = -swing;
+                mesh.children[4].rotation.x = -swing;
+                mesh.children[5].rotation.x = swing;
+            }
+        }
+    },
     SLIME: {
         name: 'Slime', health: 20, damage: 5, speed: 2, hostile: true, color: 0x44cc44,
         size: 0.6, xpDrop: 5, lootChance: 0.3,
@@ -1024,6 +1079,7 @@ export const MOB_TYPES = {
 
 // Weighted mob type table for spawning
 const MOB_SPAWN_WEIGHTS = [
+    { type: 'SHEEP', weight: 20 },
     { type: 'SLIME', weight: 20 },
     { type: 'GOBLIN', weight: 15 },
     { type: 'ZOMBIE', weight: 15 },
@@ -1642,7 +1698,9 @@ export class EntityManager {
             
             if (mob.justDied) {
                 // Drop spell or modifier
-                if (Math.random() < (mob.config.lootChance || 0.3)) {
+                if (mob.type === 'SHEEP') {
+                    this.spawnItem(Item.blockItem(BLOCKS.WOOL, 'Wool'), 1 + Math.floor(Math.random() * 2), mob.position.clone());
+                } else if (Math.random() < (mob.config.lootChance || 0.3)) {
                     if (Math.random() < 0.7) {
                         this.spawnItem(Item.spellItem(generateRandomSpell()), 1, mob.position.clone());
                     } else {

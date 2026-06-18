@@ -230,12 +230,21 @@ class UISystem {
             craftingOutput: document.getElementById('crafting-output'),
             craftingRecipeName: document.getElementById('crafting-recipe-name'),
             chestPanel: document.getElementById('chest-panel'),
-            chestGrid: document.getElementById('chest-grid')
+            chestGrid: document.getElementById('chest-grid'),
+            furnacePanel: document.getElementById('furnace-panel'),
+            furnaceInput: document.getElementById('furnace-input'),
+            furnaceFuel: document.getElementById('furnace-fuel'),
+            furnaceOutput: document.getElementById('furnace-output'),
+            furnaceProgress: document.getElementById('furnace-progress'),
+            furnaceFire: document.getElementById('furnace-fire')
         };
         this.isOpen = false;
         this.chestPos = null;
         this.chestInventory = null;
         this.onChestClose = null;
+        this.furnacePos = null;
+        this.furnaceData = null;
+        this.onFurnaceClose = null;
         this.atlas = null;
         
         // 4 crafting slots (2x2 grid)
@@ -256,6 +265,7 @@ class UISystem {
 
         this._initCraftingGrid();
         this._initArmorSlots();
+        this._initFurnaceSlots();
 
         const btnRecipeBook = document.getElementById('btn-recipe-book');
         const modalRecipeBook = document.getElementById('recipe-book-modal');
@@ -291,6 +301,14 @@ class UISystem {
                 this.onChestClose = null;
                 this.elements.chestPanel.classList.add('hidden');
             }
+            // Close furnace if open
+            if (this.furnacePos) {
+                if (this.onFurnaceClose) this.onFurnaceClose();
+                this.furnacePos = null;
+                this.furnaceData = null;
+                this.onFurnaceClose = null;
+                this.elements.furnacePanel.classList.add('hidden');
+            }
         }
     }
 
@@ -308,6 +326,22 @@ class UISystem {
         this.chestInventory = inventory;
         this.onChestClose = onClose;
         this.elements.chestPanel.classList.remove('hidden');
+    }
+
+    toggleFurnace(x, y, z, data, onClose) {
+        if (this.furnacePos && this.furnacePos.x === x && this.furnacePos.y === y && this.furnacePos.z === z) {
+            this.toggle(); // Close it
+            return;
+        }
+
+        if (!this.isOpen) {
+            this.toggle();
+        }
+
+        this.furnacePos = {x, y, z};
+        this.furnaceData = data;
+        this.onFurnaceClose = onClose;
+        this.elements.furnacePanel.classList.remove('hidden');
     }
 
     updateHUD(player, fps, atlas) {
@@ -342,6 +376,11 @@ class UISystem {
             // Render chest if open
             if (this.chestPos && this.chestInventory) {
                 this.renderGrid(this.elements.chestGrid, this.chestInventory, 0, player, 'chest');
+            }
+
+            // Render furnace if open
+            if (this.furnacePos && this.furnaceData) {
+                this._updateFurnaceSlots();
             }
         }
     }
@@ -444,6 +483,12 @@ class UISystem {
         } else if (type === 'wand') {
             const w = this.currentPlayer.inventory.slots[this.currentPlayer.selectedSlot];
             if (w && w.item.type === 'wand') slot = w.item.data.wand.spellSlots[index] ? { item: w.item.data.wand.spellSlots[index], count: 1 } : null;
+        } else if (type === 'furnace') {
+            if (index === 0) slot = this.furnaceData.input;
+            else if (index === 1) slot = this.furnaceData.fuel;
+            else if (index === 2) {
+                slot = this.furnaceData.output; // Can pick up output
+            }
         }
         
         if (slot) {
@@ -463,11 +508,17 @@ class UISystem {
                 if (type === 'inventory') this.currentPlayer.inventory.slots[index] = null;
                 else if (type === 'crafting') this.craftingSlots[index] = null;
                 else if (type === 'armor') this.currentPlayer.inventory.armor[index] = null;
+                else if (type === 'furnace') {
+                    if (index === 0) this.furnaceData.input = null;
+                    else if (index === 1) this.furnaceData.fuel = null;
+                    else if (index === 2) this.furnaceData.output = null;
+                }
             }
             
             this._updateInventory();
             this._updateCraftingSlots();
             this._updateArmorSlots();
+            this._updateFurnaceSlots();
             
             const el = e.currentTarget;
             const rect = el.getBoundingClientRect();
@@ -533,10 +584,18 @@ class UISystem {
                 } else {
                     this.chestInventory[srcIndex] = itemData;
                 }
+            } else if (srcType === 'furnace' && this.furnaceData) {
+                const mapKey = ['input', 'fuel', 'output'][srcIndex];
+                if (this.dragState.isSplit) {
+                    this.furnaceData[mapKey].count += itemData.count;
+                } else {
+                    this.furnaceData[mapKey] = itemData;
+                }
             }
             this._updateInventory();
             this._updateCraftingSlots();
             this._updateArmorSlots();
+            this._updateFurnaceSlots();
             // Since there's no _updateChest, we rely on the main loop's updateHUD for chest redraw
         }
         this.dragState.isDragging = false;
@@ -679,12 +738,67 @@ class UISystem {
                 if (targetSlot && targetSlot.item.type === itemData.item.type && targetSlot.item.subtype === itemData.item.subtype && targetSlot.item.stackable) {
                     const add = Math.min(itemData.count, targetSlot.item.maxStack - targetSlot.count);
                     targetSlot.count += add;
-                    sList[srcIndex].count -= add;
-                    if (sList[srcIndex].count <= 0) sList[srcIndex] = null;
+                    itemData.count -= add;
+                    if (itemData.count > 0) {
+                        if (this.dragState.isSplit) sList[srcIndex].count += itemData.count;
+                        else sList[srcIndex] = itemData;
+                    }
                 } else {
+                    if (this.dragState.isSplit) sList[srcIndex].count += itemData.count; // Return half to source if swapping
+                    else sList[srcIndex] = targetSlot;
                     tList[targetIndex] = itemData;
-                    sList[srcIndex] = targetSlot;
                 }
+            }
+        } else if (srcType === 'furnace' || targetType === 'furnace') {
+            if (targetType === 'furnace' && targetIndex === 2) {
+                // Cannot drop into output
+                this.cancelDrag();
+                return;
+            }
+            
+            // For simplicity, just swap or place item directly. Furnace slots are not a simple array.
+            const getFurnaceSlot = (i) => i === 0 ? this.furnaceData.input : (i === 1 ? this.furnaceData.fuel : this.furnaceData.output);
+            const setFurnaceSlot = (i, val) => {
+                if (i === 0) this.furnaceData.input = val;
+                else if (i === 1) this.furnaceData.fuel = val;
+                else if (i === 2) this.furnaceData.output = val;
+            };
+
+            if (srcType === 'inventory' && targetType === 'furnace') {
+                const targetSlot = getFurnaceSlot(targetIndex);
+                if (targetSlot && targetSlot.item.type === itemData.item.type && targetSlot.item.subtype === itemData.item.subtype && targetSlot.item.stackable) {
+                    const add = Math.min(itemData.count, targetSlot.item.maxStack - targetSlot.count);
+                    targetSlot.count += add;
+                    itemData.count -= add;
+                    if (itemData.count > 0) {
+                        if (this.dragState.isSplit) inv[srcIndex].count += itemData.count;
+                        else inv[srcIndex] = itemData;
+                    }
+                } else {
+                    setFurnaceSlot(targetIndex, itemData);
+                    if (this.dragState.isSplit) inv[srcIndex].count += itemData.count;
+                    else inv[srcIndex] = targetSlot;
+                }
+            } else if (srcType === 'furnace' && targetType === 'inventory') {
+                const targetSlot = inv[targetIndex];
+                if (targetSlot && targetSlot.item.type === itemData.item.type && targetSlot.item.subtype === itemData.item.subtype && targetSlot.item.stackable) {
+                    const add = Math.min(itemData.count, targetSlot.item.maxStack - targetSlot.count);
+                    targetSlot.count += add;
+                    itemData.count -= add;
+                    if (itemData.count > 0) {
+                        if (this.dragState.isSplit) getFurnaceSlot(srcIndex).count += itemData.count;
+                        else setFurnaceSlot(srcIndex, itemData);
+                    }
+                } else {
+                    inv[targetIndex] = itemData;
+                    if (this.dragState.isSplit) getFurnaceSlot(srcIndex).count += itemData.count;
+                    else setFurnaceSlot(srcIndex, targetSlot);
+                }
+            } else if (srcType === 'furnace' && targetType === 'furnace') {
+                const targetSlot = getFurnaceSlot(targetIndex);
+                setFurnaceSlot(targetIndex, itemData);
+                if (this.dragState.isSplit) getFurnaceSlot(srcIndex).count += itemData.count;
+                else setFurnaceSlot(srcIndex, targetSlot);
             }
         }
 
@@ -699,6 +813,11 @@ class UISystem {
         else if (type === 'crafting') slot = this.craftingSlots[index];
         else if (type === 'crafting_output') slot = this._matchRecipe();
         else if (type === 'armor') slot = this.currentPlayer.inventory.armor[index];
+        else if (type === 'furnace') {
+            if (index === 0) slot = this.furnaceData.input;
+            else if (index === 1) slot = this.furnaceData.fuel;
+            else if (index === 2) slot = this.furnaceData.output;
+        }
         else if (type === 'wand') {
             const w = this.currentPlayer.inventory.slots[this.currentPlayer.selectedSlot];
             if (w && w.item.type === 'wand') {
@@ -782,6 +901,27 @@ class UISystem {
         });
     }
 
+    _initFurnaceSlots() {
+        if (this.elements.furnaceInput) {
+            this.elements.furnaceInput.onmousedown = (e) => this.onSlotMouseDown(e, 'furnace', 0);
+            this.elements.furnaceInput.onmouseup = (e) => this.onSlotMouseUp(e, 'furnace', 0);
+            this.elements.furnaceInput.onmouseenter = (e) => this.onSlotEnter(e, 'furnace', 0);
+            this.elements.furnaceInput.onmouseleave = () => this.onSlotLeave();
+        }
+        if (this.elements.furnaceFuel) {
+            this.elements.furnaceFuel.onmousedown = (e) => this.onSlotMouseDown(e, 'furnace', 1);
+            this.elements.furnaceFuel.onmouseup = (e) => this.onSlotMouseUp(e, 'furnace', 1);
+            this.elements.furnaceFuel.onmouseenter = (e) => this.onSlotEnter(e, 'furnace', 1);
+            this.elements.furnaceFuel.onmouseleave = () => this.onSlotLeave();
+        }
+        if (this.elements.furnaceOutput) {
+            this.elements.furnaceOutput.onmousedown = (e) => this.onSlotMouseDown(e, 'furnace', 2);
+            this.elements.furnaceOutput.onmouseup = (e) => this.onSlotMouseUp(e, 'furnace', 2);
+            this.elements.furnaceOutput.onmouseenter = (e) => this.onSlotEnter(e, 'furnace', 2);
+            this.elements.furnaceOutput.onmouseleave = () => this.onSlotLeave();
+        }
+    }
+
     _updateInventory() {
         if (!this.currentPlayer) return;
         const p = this.currentPlayer;
@@ -821,6 +961,19 @@ class UISystem {
         } else {
             this.renderSlotItem(out, null);
             if (nameEl) nameEl.textContent = '';
+        }
+    }
+
+    _updateFurnaceSlots() {
+        if (!this.furnaceData) return;
+        this.renderSlotItem(this.elements.furnaceInput, this.furnaceData.input);
+        this.renderSlotItem(this.elements.furnaceFuel, this.furnaceData.fuel);
+        this.renderSlotItem(this.elements.furnaceOutput, this.furnaceData.output);
+        if (this.elements.furnaceProgress) {
+            this.elements.furnaceProgress.style.width = `${Math.floor(this.furnaceData.progress * 100)}%`;
+        }
+        if (this.elements.furnaceFire) {
+            this.elements.furnaceFire.style.opacity = this.furnaceData.isSmelting ? '1.0' : '0.2';
         }
     }
 
@@ -958,8 +1111,7 @@ class UISystem {
         if (getCount(B.COBBLESTONE) === 4) return block(B.FURNACE, 'Furnace', 1);
         if (getCount(B.PLANKS) === 4) return block(B.CHEST_BLOCK, 'Chest', 1);
         if (getCount(B.PLANKS) === 2 && getCount('stick') === 2 && totalItems === 4) return block(B.BOOKSHELF, 'Bookshelf', 1);
-        if (getCount('stick') === 4) return block(B.LADDER, 'Ladder', 2);
-        if (getCount('stick') === 2 && totalItems === 2) return block(B.WOOL, 'Wool', 3);
+        if (getCount('stick') === 4 && totalItems === 4) return block(B.LADDER, 'Ladder', 3);
 
         // Storage Blocks
         if (getCount('iron_ingot') === 4) return block(B.IRON_BLOCK, 'Iron Block', 1);
@@ -1026,7 +1178,6 @@ class UISystem {
             { result: "Chest", ingredients: "4 Planks" },
             { result: "Bookshelf", ingredients: "2 Planks, 2 Sticks" },
             { result: "Ladder (2)", ingredients: "4 Sticks" },
-            { result: "Wool (3)", ingredients: "2 Sticks" },
             { result: "Iron/Gold/Diamond Block", ingredients: "4 Iron/Gold/Diamond" },
             { result: "Ingot/Diamond (4)", ingredients: "1 Resource Block" },
             { result: "Mossy Cobble", ingredients: "1 Cobblestone, 1 Leaves" }

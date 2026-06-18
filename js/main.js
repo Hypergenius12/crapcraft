@@ -131,13 +131,13 @@ class DoorVisual {
         
         const mat = makeMat(atlas.getUV(window.BLOCKS.DUNGEON_DOOR, 'front'));
         
-        // 1 block wide, 2 block tall, 0.15 deep
-        const doorGeo = new THREE.BoxGeometry(1.0, 2.0, 0.15);
+        // 1 block wide, 1 block tall, 0.15 deep
+        const doorGeo = new THREE.BoxGeometry(1.0, 1.0, 0.15);
         // Translate so origin is at the bottom-left corner of the mesh
-        doorGeo.translate(0.5, 1.0, 0.075); 
+        doorGeo.translate(0.5, 0.5, 0.075); 
         
         if (alignZ) {
-            doorGeo.rotateY(-Math.PI / 2); // Rotate so it spans from z=0 to z=1
+            doorGeo.rotateY(Math.PI / 2); // Rotate so it spans from z=0 to z=1
         }
         
         this.mesh = new THREE.Mesh(doorGeo, mat);
@@ -147,7 +147,7 @@ class DoorVisual {
     }
     
     update(dt) {
-        this.targetAngle = this.isOpen ? (this.alignZ ? Math.PI / 2 : -Math.PI / 2) : 0;
+        this.targetAngle = this.isOpen ? (this.alignZ ? Math.PI / 2 : Math.PI / 2) : 0;
         this.doorAngle += (this.targetAngle - this.doorAngle) * 10 * dt;
         this.mesh.rotation.y = this.doorAngle;
     }
@@ -205,8 +205,12 @@ class Game {
         this.chestInventories = new Map();
         this.chestVisuals = new Map();
         
+        // Furnace Management
+        this.furnaces = new Map(); // key -> { input, fuel, output, progress, isSmelting }
+
         this.world.onChestGenerated = (x, y, z) => this._addChest(x, y, z, true);
         this.world.onChestPlaced = (x, y, z) => this._addChest(x, y, z, false);
+        this.world.onFurnacePlaced = (x, y, z) => this._addFurnace(x, y, z);
         this.world.onChestRemoved = (x, y, z) => {
             const key = `${x},${y},${z}`;
             if (this.chestVisuals.has(key)) {
@@ -216,12 +220,24 @@ class Game {
             if (this.chestInventories.has(key)) {
                 // Drop items from chest
                 const inv = this.chestInventories.get(key);
-                for (let slot of inv) {
-                    if (slot && slot.item) {
-                        this.entityManager.spawnItem(slot.item, slot.count, new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5));
+                for (let i=0; i<inv.length; i++) {
+                    if (inv[i]) {
+                        this.entityManager.spawnItem(inv[i].item, inv[i].count, new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5));
                     }
                 }
                 this.chestInventories.delete(key);
+            }
+        };
+
+        this.world.onFurnaceRemoved = (x, y, z) => {
+            const key = `${x},${y},${z}`;
+            if (this.furnaces.has(key)) {
+                const f = this.furnaces.get(key);
+                const pos = new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5);
+                if (f.input) this.entityManager.spawnItem(f.input.item, f.input.count, pos);
+                if (f.fuel) this.entityManager.spawnItem(f.fuel.item, f.fuel.count, pos);
+                if (f.output) this.entityManager.spawnItem(f.output.item, f.output.count, pos);
+                this.furnaces.delete(key);
             }
         };
 
@@ -248,6 +264,34 @@ class Game {
             const keyBelow = `${x},${y-1},${z}`;
             return (this.doorVisuals.has(key) && this.doorVisuals.get(key).isOpen) ||
                    (this.doorVisuals.has(keyBelow) && this.doorVisuals.get(keyBelow).isOpen);
+        };
+
+        this.world.onBlockDestroyed = (x, y, z, oldType, newType) => {
+            if (oldType === BLOCKS.AIR || oldType === BLOCKS.WATER || oldType === BLOCKS.LAVA || oldType === BLOCKS.SWAMP_WATER) return;
+            // When replaced by a fluid (water or lava) or air (player breaking)
+            const props = getBlockProperties(oldType);
+            
+            // Ore blocks drop material items instead of themselves
+            const ORE_DROPS = {
+                [BLOCKS.IRON_ORE]:    { subtype: 'iron_ingot', name: 'Iron Ingot' },
+                [BLOCKS.GOLD_ORE]:    { subtype: 'gold_ingot', name: 'Gold Ingot' },
+                [BLOCKS.CRYSTAL_ORE]: { subtype: 'diamond', name: 'Diamond' },
+                [BLOCKS.DIAMOND_ORE]: { subtype: 'diamond', name: 'Diamond' },
+                [BLOCKS.MANA_ORE]:    { subtype: 'mana_crystal', name: 'Mana Crystal' },
+                [BLOCKS.COAL_ORE]:    { subtype: 'coal', name: 'Coal' },
+            };
+            const oreDrop = ORE_DROPS[oldType];
+            if (oreDrop) {
+                const matItem = new Item('material', oreDrop.subtype, {}, oreDrop.name);
+                matItem.stackable = true;
+                matItem.maxStack = 64;
+                this.entityManager.spawnItem(matItem, 1, new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5));
+            } else {
+                const dropType = props.drops !== undefined && props.drops !== null ? props.drops : oldType;
+                if (dropType !== BLOCKS.AIR) {
+                    this.entityManager.spawnItem(Item.blockItem(dropType, getBlockName(dropType)), 1, new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5));
+                }
+            }
         };
 
         this.world.onChunkUnloaded = (cx, cz) => {
@@ -447,6 +491,87 @@ class Game {
             this.chestVisuals.set(key, visual);
         }
     }
+    _addFurnace(x, y, z) {
+        const key = `${x},${y},${z}`;
+        if (!this.furnaces.has(key)) {
+            // Initial furnace state
+            this.furnaces.set(key, {
+                input: null,
+                fuel: null,
+                output: null,
+                progress: 0,
+                isSmelting: false
+            });
+        }
+    }
+
+    _updateFurnaces(dt) {
+        // Simple smelting recipes
+        const getSmeltResult = (inputItem) => {
+            if (!inputItem || !inputItem.item) return null;
+            const type = inputItem.item.type;
+            const subtype = inputItem.item.subtype;
+            
+            if (type === 'block' && (subtype === window.BLOCKS.IRON_ORE || subtype === window.BLOCKS.GOLD_ORE || subtype === window.BLOCKS.CRYSTAL_ORE || subtype === window.BLOCKS.MANA_ORE)) {
+                // Return INGOT or GEM
+                let matSubtype = 'iron_ingot';
+                if (subtype === window.BLOCKS.GOLD_ORE) matSubtype = 'gold_ingot';
+                if (subtype === window.BLOCKS.CRYSTAL_ORE) matSubtype = 'crystal_shard';
+                if (subtype === window.BLOCKS.MANA_ORE) matSubtype = 'mana_crystal';
+                return { type: 'material', subtype: matSubtype, name: matSubtype.replace('_', ' '), stackable: true, maxStack: 64, id: `mat_${matSubtype}` };
+            }
+            if (type === 'block' && subtype === window.BLOCKS.SAND) {
+                return { type: 'block', subtype: window.BLOCKS.GLASS, name: 'Glass', stackable: true, maxStack: 64, id: `block_${window.BLOCKS.GLASS}` };
+            }
+            if (type === 'block' && subtype === window.BLOCKS.COBBLESTONE) {
+                return { type: 'block', subtype: window.BLOCKS.STONE, name: 'Stone', stackable: true, maxStack: 64, id: `block_${window.BLOCKS.STONE}` };
+            }
+            return null;
+        };
+
+        const isFuel = (fuelItem) => {
+            if (!fuelItem || !fuelItem.item) return false;
+            if (fuelItem.item.type === 'material' && (fuelItem.item.subtype === 'coal' || fuelItem.item.subtype === 'stick')) return true;
+            if (fuelItem.item.type === 'block' && (fuelItem.item.subtype === window.BLOCKS.PLANKS || fuelItem.item.subtype === window.BLOCKS.WOOD)) return true;
+            return false;
+        };
+
+        for (const [key, f] of this.furnaces.entries()) {
+            const resultItem = getSmeltResult(f.input);
+            const hasFuel = isFuel(f.fuel);
+            
+            const canSmelt = resultItem && hasFuel && 
+                (!f.output || (f.output.item.type === resultItem.type && f.output.item.subtype === resultItem.subtype && f.output.count < f.output.item.maxStack));
+
+            if (canSmelt) {
+                f.isSmelting = true;
+                f.progress += dt / 5.0; // 5 seconds to smelt
+
+                if (f.progress >= 1.0) {
+                    // Smelted!
+                    f.progress = 0;
+                    f.input.count--;
+                    if (f.input.count <= 0) f.input = null;
+                    
+                    // Consume 1 fuel
+                    f.fuel.count--;
+                    if (f.fuel.count <= 0) f.fuel = null;
+                    
+                    if (f.output) {
+                        f.output.count++;
+                    } else {
+                        f.output = { item: resultItem, count: 1 };
+                    }
+                }
+            } else {
+                f.isSmelting = false;
+                if (f.progress > 0) {
+                    f.progress -= dt / 2.0; // cool down if interrupted
+                    if (f.progress < 0) f.progress = 0;
+                }
+            }
+        }
+    }
 
     _addDoor(x, y, z) {
         // Skip if this is the top half of a door (only generate visual for the bottom block)
@@ -465,9 +590,7 @@ class Game {
             const blockedX = (nx !== window.BLOCKS.AIR && nx !== window.BLOCKS.DUNGEON_DOOR) || 
                              (px !== window.BLOCKS.AIR && px !== window.BLOCKS.DUNGEON_DOOR);
             
-            // Align Z if X is blocked and Z is open (i.e., corridor runs along Z, doorway cuts across X, so door spans X)
-            // Wait, if blockedX is true, walls are on X axis. Door should span Z! So alignZ should be true.
-            const alignZ = blockedX && !blockedZ;
+            const alignZ = blockedZ && !blockedX;
 
             const visual = new DoorVisual(this.engine.scene, x, y, z, this.atlas, alignZ);
             this.doorVisuals.set(key, visual);
@@ -684,33 +807,12 @@ class Game {
 
                 if (this.breakTimer >= breakTime) {
                     const blockType = this.world.getBlock(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z);
+                    // The setBlock call will trigger onBlockDestroyed which spawns the item
                     this.world.setBlock(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z, BLOCKS.AIR);
+                    
                     if (blockType === BLOCKS.TORCH) this.torchSystem.removeTorch(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z);
-
-                    const props = getBlockProperties(blockType);
-                    if (blockType !== BLOCKS.AIR && blockType !== BLOCKS.WATER && blockType !== BLOCKS.LAVA) {
-                        // Ore blocks drop material items instead of themselves
-                        const ORE_DROPS = {
-                            [BLOCKS.IRON_ORE]:    { subtype: 'iron_ingot', name: 'Iron Ingot' },
-                            [BLOCKS.GOLD_ORE]:    { subtype: 'gold_ingot', name: 'Gold Ingot' },
-                            [BLOCKS.CRYSTAL_ORE]: { subtype: 'diamond', name: 'Diamond' },
-                            [BLOCKS.DIAMOND_ORE]: { subtype: 'diamond', name: 'Diamond' },
-                            [BLOCKS.MANA_ORE]:    { subtype: 'mana_crystal', name: 'Mana Crystal' },
-                            [BLOCKS.COAL_ORE]:    { subtype: 'coal', name: 'Coal' },
-                        };
-                        const oreDrop = ORE_DROPS[blockType];
-                        if (oreDrop) {
-                            const matItem = new Item('material', oreDrop.subtype, {}, oreDrop.name);
-                            matItem.stackable = true;
-                            matItem.maxStack = 64;
-                            this.entityManager.spawnItem(matItem, 1, new THREE.Vector3(hit.blockPos.x + 0.5, hit.blockPos.y + 0.5, hit.blockPos.z + 0.5));
-                        } else {
-                            const dropType = props.drops !== undefined && props.drops !== null ? props.drops : blockType;
-                            this.entityManager.spawnItem(Item.blockItem(dropType, getBlockName(dropType)), 1, new THREE.Vector3(hit.blockPos.x + 0.5, hit.blockPos.y + 0.5, hit.blockPos.z + 0.5));
-                        }
-                    }
-
-                    this.audio.playBreak(blockType); // Pass blockType not position for break since playBreak doesn't take position yet, wait playBreak doesn't take position in audio.js. Let's leave it.
+                    
+                    this.audio.playBreak(blockType);
                     this.breakTimer = 0;
                     this.miningOverlay.visible = false;
                 }
@@ -761,6 +863,19 @@ class Game {
                 return;
             }
 
+            if (hit.hit && hit.blockType === window.BLOCKS.FURNACE) {
+                // Open Furnace
+                this.audio.playClick(); 
+                const key = `${hit.blockPos.x},${hit.blockPos.y},${hit.blockPos.z}`;
+                
+                this.ui.toggleFurnace(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z, this.furnaces.get(key), () => {
+                    this.input.requestPointerLock();
+                });
+                document.exitPointerLock();
+                this.input.mouse.rightClick = false;
+                return;
+            }
+
             if (hit.hit && hit.blockType === window.BLOCKS.DUNGEON_DOOR) {
                 // Toggle Door
                 this.audio.playClick();
@@ -779,7 +894,19 @@ class Game {
                 this.input.mouse.rightClick = false;
                 return;
             }
-
+            if (hit.hit && hit.blockType === window.BLOCKS.BOOKSHELF) {
+                // Restore Mana
+                if (this.player.mana < this.player.maxMana) {
+                    this.player.mana += 20;
+                    if (this.player.mana > this.player.maxMana) this.player.mana = this.player.maxMana;
+                    this.audio.playHit(); // Magical sound 
+                    
+                    // Consume bookshelf? Or let it be reusable? Let's make it reusable but with a tiny cooldown maybe? 
+                    // No cooldown mentioned. 
+                }
+                this.input.mouse.rightClick = false;
+                return;
+            }
             if (slot && slot.item.type === 'wand') {
                 if (this.player.activeSpellIndex === undefined) this.player.activeSpellIndex = 0;
                 this.player.activeSpellIndex = (this.player.activeSpellIndex + 1) % slot.item.data.wand.maxSlots;
@@ -918,6 +1045,8 @@ class Game {
 
         // Update World (Chunks)
         this.world.update(this.player.position, (cx, cz) => generateChunkTerrain(cx, cz, this.planetParams), dt);
+
+        this._updateFurnaces(dt);
 
         // Update Systems
         const headX = Math.floor(this.engine.camera.position.x);

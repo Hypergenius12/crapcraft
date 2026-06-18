@@ -92,7 +92,8 @@ export class InputManager {
             case 'KeyA': case 'ArrowLeft': this.keys.left = true; break;
             case 'KeyD': case 'ArrowRight': this.keys.right = true; break;
             case 'Space': this.keys.jump = true; break;
-            case 'ShiftLeft': case 'ShiftRight': this.keys.sprint = true; break;
+            case 'ShiftLeft': case 'ShiftRight': 
+            case 'ControlLeft': case 'ControlRight':
             case 'KeyC': this.keys.crouch = true; break;
 
             case 'Tab':
@@ -110,8 +111,6 @@ export class InputManager {
                 if (!this._menuKeysDown.pause) { this.menuKeys.pause = true; this._menuKeysDown.pause = true; }
                 break;
             case 'F3':
-            case 'ControlLeft':
-            case 'ControlRight':
                 if (!this._menuKeysDown.debug) { this.menuKeys.debug = true; this._menuKeysDown.debug = true; }
                 break;
             case 'KeyQ':
@@ -137,7 +136,8 @@ export class InputManager {
             case 'KeyA': case 'ArrowLeft': this.keys.left = false; break;
             case 'KeyD': case 'ArrowRight': this.keys.right = false; break;
             case 'Space': this.keys.jump = false; break;
-            case 'ShiftLeft': case 'ShiftRight': this.keys.sprint = false; break;
+            case 'ShiftLeft': case 'ShiftRight': 
+            case 'ControlLeft': case 'ControlRight':
             case 'KeyC': this.keys.crouch = false; break;
 
             case 'Tab': case 'KeyI': case 'KeyE': this._menuKeysDown.inventory = false; break;
@@ -202,7 +202,7 @@ const FACES = [
     { dir: [0, -1, 0], v: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], name: 'bottom' }, // bottom
     { dir: [1, 0, 0], v: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]], name: 'side' }, // right
     { dir: [-1, 0, 0], v: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]], name: 'side' }, // left
-    { dir: [0, 0, 1], v: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], name: 'side' }, // front
+    { dir: [0, 0, 1], v: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], name: 'front' }, // front
     { dir: [0, 0, -1], v: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], name: 'side' }, // back
 ];
 
@@ -587,6 +587,10 @@ export class World {
             const oldType = chunk.getBlock(lx, wy, lz);
             chunk.setBlock(lx, wy, lz, type);
             
+            if (this.onBlockDestroyed) {
+                this.onBlockDestroyed(wx, wy, wz, oldType, type);
+            }
+            
             // Register chest placement/removal
             if (oldType === window.BLOCKS.CHEST_BLOCK && type !== window.BLOCKS.CHEST_BLOCK) {
                 if (this.onChestRemoved) this.onChestRemoved(wx, wy, wz);
@@ -664,9 +668,10 @@ export class World {
             const bBelow = this.getBlock(x, y - 1, z);
             const belowProps = getBlockProperties(bBelow);
 
-            if (bBelow === BLOCKS.AIR) {
+            if (bBelow === BLOCKS.AIR || belowProps.isCross || belowProps.isGrass) {
                 this.setBlock(x, y - 1, z, type);
                 this.setData(x, y - 1, z, maxLevel); // Falling resets to max level
+                this.queueLiquidUpdate(x, y - 1, z);
             } else if (!belowProps.isLiquid) {
                 // Spread sideways if blocked below
                 if (currentLevel > 1) {
@@ -682,6 +687,7 @@ export class World {
                             // Wash away small plants like grass/flowers when flowing
                             this.setBlock(x + dx, y, z + dz, type);
                             this.setData(x + dx, y, z + dz, nextLevel);
+                            this.queueLiquidUpdate(x + dx, y, z + dz);
                         } else if (sideProps.isLiquid && sideBlock !== type) {
                             // Liquid mixing!
                             const sideIsWater = sideBlock === BLOCKS.WATER || sideBlock === BLOCKS.SWAMP_WATER;
