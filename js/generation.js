@@ -905,11 +905,3 @@ export function generateCabin(blocks, x, y, z, rng) {
     }
 }
 
-function safeSetBlock(blocks, x, y, z, type, onlyReplaceAir = false) {
-    if (x >= 0 && x < CHUNK_SIZE && y >= 0 && y < CHUNK_HEIGHT && z >= 0 && z < CHUNK_SIZE) {
-        const idx = (y * CHUNK_SIZE * CHUNK_SIZE) + (z * CHUNK_SIZE) + x;
-        if (!onlyReplaceAir || blocks[idx] === BLOCKS.AIR) {
-            blocks[idx] = type;
-        }
-    }
-}
