@@ -228,9 +228,14 @@ class UISystem {
             tooltip: document.getElementById('item-tooltip'),
             craftingGrid: document.getElementById('crafting-grid'),
             craftingOutput: document.getElementById('crafting-output'),
-            craftingRecipeName: document.getElementById('crafting-recipe-name')
+            craftingRecipeName: document.getElementById('crafting-recipe-name'),
+            chestPanel: document.getElementById('chest-panel'),
+            chestGrid: document.getElementById('chest-grid')
         };
         this.isOpen = false;
+        this.chestPos = null;
+        this.chestInventory = null;
+        this.onChestClose = null;
         this.atlas = null;
         
         // 4 crafting slots (2x2 grid)
@@ -265,6 +270,11 @@ class UISystem {
     }
 
     toggle() {
+        if (!this.isOpen && this.chestPos) {
+            // Can't just toggle inventory if chest is open without closing chest
+            this.toggleChest(null, null, null, null, null);
+        }
+
         this.isOpen = !this.isOpen;
         if (this.isOpen) {
             this.elements.geometricUI.classList.remove('hidden');
@@ -272,7 +282,32 @@ class UISystem {
             this.elements.geometricUI.classList.add('hidden');
             this.elements.tooltip.classList.add('hidden');
             if (this.dragState.isDragging) this.cancelDrag();
+            
+            // Close chest if open
+            if (this.chestPos) {
+                if (this.onChestClose) this.onChestClose();
+                this.chestPos = null;
+                this.chestInventory = null;
+                this.onChestClose = null;
+                this.elements.chestPanel.classList.add('hidden');
+            }
         }
+    }
+
+    toggleChest(x, y, z, inventory, onClose) {
+        if (this.chestPos && this.chestPos.x === x && this.chestPos.y === y && this.chestPos.z === z) {
+            this.toggle(); // Close it
+            return;
+        }
+
+        if (!this.isOpen) {
+            this.toggle(); // Open UI
+        }
+
+        this.chestPos = {x, y, z};
+        this.chestInventory = inventory;
+        this.onChestClose = onClose;
+        this.elements.chestPanel.classList.remove('hidden');
     }
 
     updateHUD(player, fps, atlas) {
@@ -303,6 +338,11 @@ class UISystem {
 
             // Render armor slots
             this._updateArmorSlots();
+
+            // Render chest if open
+            if (this.chestPos && this.chestInventory) {
+                this.renderGrid(this.elements.chestGrid, this.chestInventory, 0, player, 'chest');
+            }
         }
     }
 
@@ -487,10 +527,17 @@ class UISystem {
                 }
             } else if (srcType === 'armor') {
                 this.currentPlayer.inventory.armor[srcIndex] = itemData;
+            } else if (srcType === 'chest' && this.chestInventory) {
+                if (this.dragState.isSplit) {
+                    this.chestInventory[srcIndex].count += itemData.count;
+                } else {
+                    this.chestInventory[srcIndex] = itemData;
+                }
             }
             this._updateInventory();
             this._updateCraftingSlots();
             this._updateArmorSlots();
+            // Since there's no _updateChest, we rely on the main loop's updateHUD for chest redraw
         }
         this.dragState.isDragging = false;
         this.elements.dragIcon.classList.add('hidden');
@@ -601,7 +648,7 @@ class UISystem {
                 }
             }
         }
-        else if (srcType === 'wand' && targetType === 'inventory') {
+        } else if (srcType === 'wand' && targetType === 'inventory') {
             const targetSlot = inv[targetIndex];
             // Only swap if empty or also a spell
             if (!targetSlot) {
@@ -610,6 +657,22 @@ class UISystem {
             } else if (targetSlot.item.type === 'spell') {
                 wand.spellSlots[srcIndex] = targetSlot.item;
                 inv[targetIndex] = { item: itemData.item, count: 1 };
+            }
+        } else if (srcType === 'chest' || targetType === 'chest') {
+            let sList = srcType === 'inventory' ? inv : (srcType === 'chest' ? this.chestInventory : null);
+            let tList = targetType === 'inventory' ? inv : (targetType === 'chest' ? this.chestInventory : null);
+            
+            if (sList && tList) {
+                const targetSlot = tList[targetIndex];
+                if (targetSlot && targetSlot.item.type === itemData.item.type && targetSlot.item.subtype === itemData.item.subtype && targetSlot.item.stackable) {
+                    const add = Math.min(itemData.count, targetSlot.item.maxStack - targetSlot.count);
+                    targetSlot.count += add;
+                    sList[srcIndex].count -= add;
+                    if (sList[srcIndex].count <= 0) sList[srcIndex] = null;
+                } else {
+                    tList[targetIndex] = itemData;
+                    sList[srcIndex] = targetSlot;
+                }
             }
         }
 
@@ -875,6 +938,43 @@ class UISystem {
         if (s[0] === 'wand_basic' && (s[1] === B.LEAVES || s[1] === B.CHERRY_LEAVES || s[1] === B.AUTUMN_LEAVES) && !s[2] && !s[3])
             return equip('wand_nature', { element: 'HEAL' }, 'Nature Wand', 'Heals the wielder.');
 
+        // --- NEW RECIPES ---
+        // Building Blocks
+        if (getCount(B.STONE) === 4) return block(B.STONE_BRICKS, 'Stone Bricks', 4);
+        if (getCount(B.CLAY) === 4) return block(B.BRICKS, 'Bricks', 4);
+        if (getCount(B.SAND) === 4) return block(B.GLASS, 'Glass', 1);
+        if (getCount(B.COBBLESTONE) === 4) return block(B.FURNACE, 'Furnace', 1);
+        if (getCount(B.PLANKS) === 4) return block(B.CHEST_BLOCK, 'Chest', 1);
+        if (getCount(B.PLANKS) === 2 && getCount('stick') === 2 && totalItems === 4) return block(B.BOOKSHELF, 'Bookshelf', 1);
+        if (getCount('stick') === 4) return block(B.LADDER, 'Ladder', 2);
+        if (getCount('stick') === 2 && totalItems === 2) return block(B.WOOL, 'Wool', 3);
+
+        // Storage Blocks
+        if (getCount('iron_ingot') === 4) return block(B.IRON_BLOCK, 'Iron Block', 1);
+        if (getCount('gold_ingot') === 4) return block(B.GOLD_BLOCK, 'Gold Block', 1);
+        if (getCount('diamond') === 4) return block(B.DIAMOND_BLOCK, 'Diamond Block', 1);
+        
+        // Reverse Storage
+        if (getCount(B.IRON_BLOCK) === 1 && totalItems === 1) return mat('iron_ingot', 'Iron Ingot', 4);
+        if (getCount(B.GOLD_BLOCK) === 1 && totalItems === 1) return mat('gold_ingot', 'Gold Ingot', 4);
+        if (getCount(B.DIAMOND_BLOCK) === 1 && totalItems === 1) return mat('diamond', 'Diamond', 4);
+
+        // Gold Tools
+        r = toolRecipe('gold_ingot', 2.5, 4, 2.5, 'Gold Pickaxe', 'pickaxe'); if (r) return r;
+        r = toolRecipe('gold_ingot', 1.0, 7, 1.0, 'Gold Sword', 'sword'); if (r) return r;
+        r = axeRecipe('gold_ingot', 2.5, 'Gold Axe'); if (r) return r;
+
+        // Gold Armor
+        r = armorRecipe2H('gold_ingot', 'Gold Helmet', 'head', 3); if (r) return r;
+        r = armorRecipeFull('gold_ingot', 'Gold Chestplate', 'chest', 7); if (r) return r;
+        r = armorRecipeLegs('gold_ingot', 'Gold Leggings', 'legs', 4); if (r) return r;
+        r = armorRecipeBoots('gold_ingot', 'Gold Boots', 'boots', 3); if (r) return r;
+
+        // Decorative
+        if (getCount(B.SANDSTONE) === 4) return block(B.SANDSTONE, 'Smooth Sandstone', 4);
+        if (getCount(B.COBBLESTONE) === 1 && (getCount(B.LEAVES) === 1 || getCount(B.CHERRY_LEAVES) === 1 || getCount(B.AUTUMN_LEAVES) === 1) && totalItems === 2) 
+            return block(B.MOSSY_COBBLESTONE, 'Mossy Cobble', 1);
+
         return null;
     }
 
@@ -897,16 +997,27 @@ class UISystem {
             { result: "Stick (4)", ingredients: "2 Planks (Shapeless)" },
             { result: "Torch (4)", ingredients: "1 Coal, 1 Stick (Shapeless)" },
             { result: "Sword (Wood/Stone/Iron/Diamond)", ingredients: "1 Material (Top), 1 Stick (Bottom)" },
-            { result: "Pickaxe (Wood/Stone/Iron/Diamond)", ingredients: "2 Material (Top row), 1 Stick (Bottom Left)" },
-            { result: "Axe (Wood/Stone/Iron/Diamond)", ingredients: "2 Material (Top row), 1 Stick (Bottom Right)" },
-            { result: "Helmet (Iron/Diamond)", ingredients: "2 Material (Top row)" },
-            { result: "Chestplate (Iron/Diamond)", ingredients: "4 Material (Full Grid)" },
-            { result: "Leggings (Iron/Diamond)", ingredients: "3 Material (U-shape)" },
-            { result: "Boots (Iron/Diamond)", ingredients: "2 Material (Vertical)" },
+            { result: "Pickaxe (Wood/Stone/Iron/Gold/Diamond)", ingredients: "2 Material (Top row), 1 Stick (Bottom Left)" },
+            { result: "Axe (Wood/Stone/Iron/Gold/Diamond)", ingredients: "2 Material (Top row), 1 Stick (Bottom Right)" },
+            { result: "Helmet (Iron/Gold/Diamond)", ingredients: "2 Material (Top row)" },
+            { result: "Chestplate (Iron/Gold/Diamond)", ingredients: "4 Material (Full Grid)" },
+            { result: "Leggings (Iron/Gold/Diamond)", ingredients: "3 Material (U-shape)" },
+            { result: "Boots (Iron/Gold/Diamond)", ingredients: "2 Material (Vertical)" },
             { result: "Basic Wand", ingredients: "1 Stick, 1 Iron Ingot" },
             { result: "Fire Wand", ingredients: "1 Basic Wand, 1 Coal" },
             { result: "Ice Wand", ingredients: "1 Basic Wand, 1 Snow" },
-            { result: "Nature Wand", ingredients: "1 Basic Wand, 1 Leaves" }
+            { result: "Nature Wand", ingredients: "1 Basic Wand, 1 Leaves" },
+            { result: "Stone Bricks (4)", ingredients: "4 Stone" },
+            { result: "Bricks (4)", ingredients: "4 Clay" },
+            { result: "Glass", ingredients: "4 Sand" },
+            { result: "Furnace", ingredients: "4 Cobblestone" },
+            { result: "Chest", ingredients: "4 Planks" },
+            { result: "Bookshelf", ingredients: "2 Planks, 2 Sticks" },
+            { result: "Ladder (2)", ingredients: "4 Sticks" },
+            { result: "Wool (3)", ingredients: "2 Sticks" },
+            { result: "Iron/Gold/Diamond Block", ingredients: "4 Iron/Gold/Diamond" },
+            { result: "Ingot/Diamond (4)", ingredients: "1 Resource Block" },
+            { result: "Mossy Cobble", ingredients: "1 Cobblestone, 1 Leaves" }
         ];
 
         let html = '<ul style="list-style: none; padding: 0; margin: 0;">';

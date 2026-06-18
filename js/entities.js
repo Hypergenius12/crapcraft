@@ -119,7 +119,6 @@ export class Player {
         // Direction vectors
         const forward = new THREE.Vector3(-Math.sin(this.rotation.yaw), 0, -Math.cos(this.rotation.yaw)).normalize();
         const right = new THREE.Vector3(Math.cos(this.rotation.yaw), 0, -Math.sin(this.rotation.yaw)).normalize();
-
         // Equipment Effects
         let speedMult = 1.0;
         let flying = false;
@@ -131,8 +130,11 @@ export class Player {
             if (boots.item.data.equipData.flying) flying = true;
         }
 
+        // Apply speed bonus
+        speedMult *= this.speedMult;
+
         // Movement input
-        const speed = (keys.sprint ? 8 : 5) * speedMult;
+        const speed = (keys.sprint ? 9.5 : 6.0) * speedMult;
         let moveDir = new THREE.Vector3(0,0,0);
         
         if (keys.forward) moveDir.add(forward);

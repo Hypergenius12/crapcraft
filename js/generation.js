@@ -233,6 +233,103 @@ function getColumnInfo(wx, wz, params) {
     return { biome: center.biome, surfaceY, colRng, bData };
 }
 
+function safeSetBlock(blocks, x, y, z, type, onlyAir = false) {
+    if (x >= 0 && x < CHUNK_SIZE && y >= 0 && y < CHUNK_HEIGHT && z >= 0 && z < CHUNK_SIZE) {
+        const idx = (y * CHUNK_SIZE * CHUNK_SIZE) + (z * CHUNK_SIZE) + x;
+        if (!onlyAir || blocks[idx] === BLOCKS.AIR) {
+            blocks[idx] = type;
+        }
+    }
+}
+
+function generateOreVein(blocks, wx, y, wz, oreType, minSize, maxSize, rng) {
+    const size = minSize + Math.floor(rng() * (maxSize - minSize + 1));
+    let currentX = wx;
+    let currentY = y;
+    let currentZ = wz;
+    
+    for (let i = 0; i < size; i++) {
+        // Place ore if it's within chunk bounds and is stone
+        if (currentX >= 0 && currentX < CHUNK_SIZE && currentY >= 0 && currentY < CHUNK_HEIGHT && currentZ >= 0 && currentZ < CHUNK_SIZE) {
+            const idx = (currentY * CHUNK_SIZE * CHUNK_SIZE) + (currentZ * CHUNK_SIZE) + currentX;
+            if (blocks[idx] === BLOCKS.STONE) {
+                blocks[idx] = oreType;
+            }
+        }
+        
+        // Random walk to adjacent block
+        const dir = Math.floor(rng() * 6);
+        if (dir === 0) currentX++;
+        else if (dir === 1) currentX--;
+        else if (dir === 2) currentY++;
+        else if (dir === 3) currentY--;
+        else if (dir === 4) currentZ++;
+        else if (dir === 5) currentZ--;
+    }
+}
+
+function generateWizardTower(blocks, baseX, baseY, baseZ, rng) {
+    const radius = 4;
+    const height = 20;
+    
+    for (let y = 0; y < height; y++) {
+        for (let x = -radius; x <= radius; x++) {
+            for (let z = -radius; z <= radius; z++) {
+                // Circle check
+                if (x*x + z*z <= radius*radius) {
+                    const isEdge = x*x + z*z > (radius-1)*(radius-1);
+                    const localY = baseY + y;
+                    
+                    if (isEdge) {
+                        // Wall
+                        let type = rng() < 0.2 ? BLOCKS.MOSSY_COBBLESTONE : BLOCKS.STONE_BRICKS;
+                        // Windows on each floor
+                        if ((y === 3 || y === 4 || y === 10 || y === 11 || y === 17 || y === 18) && (x === 0 || z === 0)) {
+                            type = BLOCKS.GLASS;
+                        }
+                        // Door
+                        if (y < 2 && x === 0 && z === radius) {
+                            type = BLOCKS.AIR;
+                        }
+                        safeSetBlock(blocks, baseX + x, localY, baseZ + z, type);
+                    } else {
+                        // Interior
+                        let type = BLOCKS.AIR;
+                        
+                        // Floors
+                        if (y === 0 || y === 7 || y === 14) {
+                            type = BLOCKS.PLANKS;
+                        }
+                        
+                        // Ladder column
+                        if (x === 1 && z === 0) {
+                            type = BLOCKS.LADDER;
+                        }
+                        
+                        // Furniture
+                        if (y === 1 && x === -2 && z === -2) type = BLOCKS.FURNACE;
+                        if (y === 1 && x === -radius+1 && z > 0) type = BLOCKS.BOOKSHELF;
+                        
+                        if (y === 8 && x === 0 && z === 0) type = BLOCKS.GLOWSTONE;
+                        if (y === 8 && (Math.abs(x) === 2 && Math.abs(z) === 2)) type = BLOCKS.ALIEN_CRYSTAL;
+                        if (y === 8 && x === -radius+1 && z === -radius+1) type = BLOCKS.CHEST_BLOCK;
+                        
+                        if (y === 15 && x === 0 && z === 0) type = BLOCKS.MANA_ORE;
+                        if (y === 15 && x === -radius+1 && z === radius-1) type = BLOCKS.CHEST_BLOCK;
+                        
+                        // Roof dome
+                        if (y === height - 1 && x*x + z*z <= (radius-2)*(radius-2)) {
+                            type = BLOCKS.GLASS;
+                        }
+                        
+                        safeSetBlock(blocks, baseX + x, localY, baseZ + z, type);
+                    }
+                }
+            }
+        }
+    }
+}
+
 // Generate the chunk terrain
 export function generateChunkTerrain(cx, cz, params) {
     const blocks = new Uint8Array(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE);
@@ -263,13 +360,16 @@ export function generateChunkTerrain(cx, cz, params) {
                         if (c > params.caveThreshold) type = BLOCKS.AIR;
                     }
                     
-                    if (type === BLOCKS.STONE && colRng() < 0.04) {
-                        if (y < 15 && colRng() < 0.15) type = BLOCKS.DIAMOND_ORE;
-                        else if (y < 20 && colRng() < 0.2) type = BLOCKS.CRYSTAL_ORE;
-                        else if (y < 30 && colRng() < 0.3) type = BLOCKS.MANA_ORE;
-                        else if (colRng() < 0.1) type = BLOCKS.GOLD_ORE;
-                        else if (colRng() < 0.3) type = BLOCKS.COAL_ORE;
-                        else type = BLOCKS.IRON_ORE;
+                    if (type === BLOCKS.STONE && colRng() < 0.02) {
+                        let oreType = BLOCKS.IRON_ORE;
+                        let minS = 1, maxS = 6;
+                        if (y < 15 && colRng() < 0.15) { oreType = BLOCKS.DIAMOND_ORE; minS = 1; maxS = 4; }
+                        else if (y < 20 && colRng() < 0.2) { oreType = BLOCKS.CRYSTAL_ORE; minS = 1; maxS = 3; }
+                        else if (y < 30 && colRng() < 0.3) { oreType = BLOCKS.MANA_ORE; minS = 1; maxS = 3; }
+                        else if (colRng() < 0.1) { oreType = BLOCKS.GOLD_ORE; minS = 2; maxS = 5; }
+                        else if (colRng() < 0.3) { oreType = BLOCKS.COAL_ORE; minS = 3; maxS = 10; }
+                        
+                        generateOreVein(blocks, x, y, z, oreType, minS, maxS, colRng);
                     }
                 } else if (y <= surfaceY) {
                     type = (y === surfaceY) ? biome.surface : biome.dirt;
@@ -323,7 +423,9 @@ export function generateChunkTerrain(cx, cz, params) {
                     safeSetBlock(blocks, tx, surfaceY + 1, tz, BLOCKS.ALIEN_TALL_GRASS);
                 } else if (r < 0.001) {
                     generatePortalStructure(blocks, tx, surfaceY + 1, tz, floraRng);
-                } else if (r < 0.0002 && (biome === BIOMES.FOREST || biome === BIOMES.PLAINS || biome === BIOMES.TUNDRA)) {
+                } else if (r < 0.0015 && (biome === BIOMES.FOREST || biome === BIOMES.PLAINS || biome === BIOMES.TUNDRA)) {
+                    generateWizardTower(blocks, tx, surfaceY + 1, tz, floraRng);
+                } else if (r < 0.002 && (biome === BIOMES.FOREST || biome === BIOMES.PLAINS || biome === BIOMES.TUNDRA)) {
                     generateCabin(blocks, tx, surfaceY + 1, tz, floraRng);
                 } else if (biome.name !== 'Desert' && biome.name !== 'Badlands' && biome.name !== 'Volcanic' && biome.name !== 'Ice Spikes' && biome.name !== 'Deep Ocean') {
                     // Normal grass logic
@@ -726,6 +828,18 @@ function carveRoomInChunk(blocks, cx, cz, room) {
                     } else if (room.type === 'normal' && wy === Math.min(maxY, CHUNK_HEIGHT - 1) && wx === Math.floor((minX+maxX)/2) && wz === Math.floor((minZ+maxZ)/2)) {
                         safeSetBlock(blocks, lx, wy, lz, BLOCKS.GLOWSTONE);
                     }
+                    
+                    // Chests
+                    if (room.type === 'boss' && wy === minY + 1 && (wx === minX+2 || wx === maxX-2) && (wz === minZ+2 || wz === maxZ-2)) {
+                        safeSetBlock(blocks, lx, wy, lz, BLOCKS.CHEST_BLOCK);
+                    }
+                    if (room.type === 'normal' && wy === minY + 1 && wx === minX+2 && wz === minZ+2) {
+                        // 30% chance for a chest in a normal room corner
+                        const chestRng = Math.random();
+                        if (chestRng < 0.3) {
+                            safeSetBlock(blocks, lx, wy, lz, BLOCKS.CHEST_BLOCK);
+                        }
+                    }
                 }
             }
         }
@@ -780,8 +894,8 @@ export function generateCabin(blocks, x, y, z, rng) {
     }
     
     // Add interior
-    safeSetBlock(blocks, x - 1, y, z + 1, BLOCKS.COBBLESTONE); // Furnace proxy
-    safeSetBlock(blocks, x + 1, y, z + 1, BLOCKS.PLANKS); // Table
+    safeSetBlock(blocks, x - 1, y, z + 1, BLOCKS.FURNACE); // Real furnace
+    safeSetBlock(blocks, x + 1, y, z + 1, BLOCKS.CHEST_BLOCK); // Chest instead of table
     safeSetBlock(blocks, x, y + 2, z + 1, BLOCKS.TORCH); // Wall torch
     // Floor
     for (let px = x - 1; px <= x + 1; px++) {

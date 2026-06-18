@@ -85,7 +85,18 @@ export const BLOCKS = {
     DUNGEON_DOOR: 76,
     BOSS_SPAWNER: 77,
     COAL_ORE: 78,
-    DIAMOND_ORE: 79
+    DIAMOND_ORE: 79,
+    STONE_BRICKS: 80,
+    BRICKS: 81,
+    BOOKSHELF: 82,
+    MOSSY_COBBLESTONE: 83,
+    CHEST_BLOCK: 84,
+    LADDER: 85,
+    IRON_BLOCK: 86,
+    GOLD_BLOCK: 87,
+    DIAMOND_BLOCK: 88,
+    WOOL: 89,
+    FURNACE: 90
 };
 
 // Block properties
@@ -169,7 +180,18 @@ const BLOCK_PROPS = {
     [BLOCKS.DUNGEON_DOOR]:  { name: 'Dungeon Door',   health: 5, transparent: false, emissive: 0, solid: true, drops: null },
     [BLOCKS.BOSS_SPAWNER]:  { name: 'Boss Spawner',   health: Infinity, transparent: true, emissive: 0, solid: false, drops: null },
     [BLOCKS.COAL_ORE]:      { name: 'Coal Ore',       health: 6, transparent: false, emissive: 0, solid: true, drops: null },
-    [BLOCKS.DIAMOND_ORE]:   { name: 'Diamond Ore',    health: 10, transparent: false, emissive: 0.2, solid: true, drops: null }
+    [BLOCKS.DIAMOND_ORE]:   { name: 'Diamond Ore',    health: 10, transparent: false, emissive: 0.2, solid: true, drops: null },
+    [BLOCKS.STONE_BRICKS]:  { name: 'Stone Bricks',   health: 7, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.BRICKS]:        { name: 'Bricks',         health: 8, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.BOOKSHELF]:     { name: 'Bookshelf',      health: 4, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.MOSSY_COBBLESTONE]:{ name: 'Mossy Cobble', health: 6, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.CHEST_BLOCK]:   { name: 'Chest',          health: 4, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.LADDER]:        { name: 'Ladder',         health: 2, transparent: true,  emissive: 0, solid: false, isCross: true, isClimbable: true, drops: null },
+    [BLOCKS.IRON_BLOCK]:    { name: 'Iron Block',     health: 10, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.GOLD_BLOCK]:    { name: 'Gold Block',     health: 10, transparent: false, emissive: 0.1, solid: true, drops: null },
+    [BLOCKS.DIAMOND_BLOCK]: { name: 'Diamond Block',  health: 12, transparent: false, emissive: 0.2, solid: true, drops: null },
+    [BLOCKS.WOOL]:          { name: 'Wool',           health: 2, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.FURNACE]:       { name: 'Furnace',        health: 8, transparent: false, emissive: 0.1, solid: true, drops: null }
 };
 
 export function getBlockProperties(type) {
@@ -1078,6 +1100,125 @@ function generateBlockTexture(ctx, blockType, face, rng) {
             drawOreSpots(ctx, rng, 'rgba(50, 220, 220, 0.95)', 5);
             drawOreSpots(ctx, rng, 'rgba(100, 255, 240, 0.6)', 3);
             break;
+        case BLOCKS.STONE_BRICKS:
+            fillBase(ctx, 130, 130, 130);
+            drawBricks(ctx, rng, 'rgb(100,100,100)', 10);
+            break;
+        case BLOCKS.BRICKS:
+            fillBase(ctx, 160, 80, 60);
+            drawBricks(ctx, rng, 'rgb(180,170,155)', 12);
+            break;
+        case BLOCKS.BOOKSHELF:
+            if (face === 'top' || face === 'bottom') {
+                fillBase(ctx, 160, 130, 80);
+                addNoise(ctx, rng, 15);
+                addStripes(ctx, rng, 'rgba(100, 70, 40, 0.4)', 'v', 4);
+            } else {
+                fillBase(ctx, 80, 50, 30); // dark back
+                // books
+                const colors = ['#d32f2f', '#388e3c', '#1976d2', '#fbc02d', '#7b1fa2', '#795548', '#ffffff'];
+                for (let row = 0; row < 2; row++) {
+                    const y = row * 8 + 1;
+                    ctx.fillStyle = '#6d4c41'; // shelf
+                    ctx.fillRect(0, y + 6, TEX_SIZE, 1);
+                    
+                    let xOffset = 1;
+                    for (let b = 0; b < 4; b++) {
+                        const bw = 2 + (rng() * 2 | 0);
+                        if (xOffset + bw > 14) break;
+                        ctx.fillStyle = colors[(rng() * colors.length) | 0];
+                        ctx.fillRect(xOffset, y, bw, 6);
+                        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                        ctx.fillRect(xOffset, y+2, bw, 1);
+                        xOffset += bw + 1;
+                    }
+                }
+            }
+            break;
+        case BLOCKS.MOSSY_COBBLESTONE:
+            fillBase(ctx, 120, 120, 120);
+            addNoise(ctx, rng, 20);
+            addPixels(ctx, rng, 'rgba(80, 80, 80, 0.7)', 30);
+            addPixels(ctx, rng, 'rgba(60, 120, 40, 0.8)', 25);
+            addPixels(ctx, rng, 'rgba(40, 100, 30, 0.6)', 20);
+            break;
+        case BLOCKS.CHEST_BLOCK:
+            if (face === 'top' || face === 'bottom') {
+                fillBase(ctx, 140, 90, 40);
+                addNoise(ctx, rng, 10);
+                ctx.strokeStyle = 'rgba(60, 40, 15, 0.8)';
+                ctx.strokeRect(1, 1, 14, 14);
+            } else {
+                fillBase(ctx, 160, 110, 50);
+                addNoise(ctx, rng, 10);
+                ctx.strokeStyle = 'rgba(60, 40, 15, 0.8)';
+                ctx.strokeRect(1, 1, 14, 14);
+                // latch
+                ctx.fillStyle = '#111';
+                ctx.fillRect(7, 4, 2, 4);
+                ctx.fillStyle = '#ccc';
+                ctx.fillRect(7, 5, 2, 1);
+            }
+            break;
+        case BLOCKS.LADDER:
+            ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
+            ctx.fillStyle = 'rgb(120, 80, 40)';
+            ctx.fillRect(2, 0, 2, TEX_SIZE); // left rail
+            ctx.fillRect(12, 0, 2, TEX_SIZE); // right rail
+            for (let y = 2; y < TEX_SIZE; y += 4) {
+                ctx.fillRect(4, y, 8, 2); // rungs
+            }
+            addNoise(ctx, rng, 10);
+            break;
+        case BLOCKS.IRON_BLOCK:
+            fillBase(ctx, 210, 210, 210);
+            addNoise(ctx, rng, 5);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.strokeRect(0, 0, TEX_SIZE, TEX_SIZE);
+            ctx.strokeStyle = 'rgba(150, 150, 150, 0.8)';
+            ctx.strokeRect(1, 1, TEX_SIZE-1, TEX_SIZE-1);
+            break;
+        case BLOCKS.GOLD_BLOCK:
+            fillBase(ctx, 250, 200, 50);
+            addNoise(ctx, rng, 10);
+            ctx.fillStyle = '#fff9c4';
+            ctx.fillRect(1, 1, 4, 1);
+            ctx.fillRect(1, 1, 1, 4);
+            ctx.strokeStyle = 'rgba(255, 220, 100, 0.6)';
+            ctx.strokeRect(0, 0, TEX_SIZE, TEX_SIZE);
+            break;
+        case BLOCKS.DIAMOND_BLOCK:
+            fillBase(ctx, 80, 220, 220);
+            addNoise(ctx, rng, 15);
+            ctx.fillStyle = '#e0f7fa';
+            ctx.fillRect(1, 1, 3, 3);
+            ctx.fillStyle = '#006064';
+            ctx.fillRect(12, 12, 3, 3);
+            ctx.strokeStyle = '#26c6da';
+            ctx.strokeRect(0, 0, TEX_SIZE, TEX_SIZE);
+            break;
+        case BLOCKS.WOOL:
+            fillBase(ctx, 235, 235, 235);
+            addNoise(ctx, rng, 10);
+            addPixels(ctx, rng, 'rgba(200, 200, 200, 0.5)', 40);
+            break;
+        case BLOCKS.FURNACE:
+            if (face === 'top' || face === 'bottom') {
+                fillBase(ctx, 110, 110, 110);
+                addNoise(ctx, rng, 15);
+            } else {
+                fillBase(ctx, 120, 120, 120);
+                addNoise(ctx, rng, 15);
+                ctx.strokeStyle = 'rgba(80, 80, 80, 0.9)';
+                ctx.strokeRect(0, 0, TEX_SIZE, TEX_SIZE);
+                ctx.strokeRect(2, 2, 12, 12);
+                // fire pit
+                ctx.fillStyle = '#222';
+                ctx.fillRect(4, 8, 8, 5);
+                addPixels(ctx, rng, 'rgba(255, 100, 0, 0.8)', 6);
+                addPixels(ctx, rng, 'rgba(255, 200, 0, 0.9)', 3);
+            }
+            break;
         default:
             fillBase(ctx, 255, 0, 255);
             break;
@@ -1086,7 +1227,8 @@ function generateBlockTexture(ctx, blockType, face, rng) {
 
 function hasFaceVariants(blockType) {
     return [
-        BLOCKS.GRASS, BLOCKS.WOOD, BLOCKS.MUSHROOM_STEM, BLOCKS.SAVANNA_GRASS, BLOCKS.ACACIA_WOOD, BLOCKS.SWAMP_GRASS, BLOCKS.ALIEN_GRASS, BLOCKS.PORTAL_FRAME, BLOCKS.CHERRY_LOG, BLOCKS.AUTUMN_WOOD, BLOCKS.PALM_WOOD
+        BLOCKS.GRASS, BLOCKS.WOOD, BLOCKS.MUSHROOM_STEM, BLOCKS.SAVANNA_GRASS, BLOCKS.ACACIA_WOOD, BLOCKS.SWAMP_GRASS, BLOCKS.ALIEN_GRASS, BLOCKS.PORTAL_FRAME, BLOCKS.CHERRY_LOG, BLOCKS.AUTUMN_WOOD, BLOCKS.PALM_WOOD,
+        BLOCKS.BOOKSHELF, BLOCKS.CHEST_BLOCK, BLOCKS.FURNACE
     ].includes(blockType);
 }
 

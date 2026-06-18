@@ -247,7 +247,7 @@ export class Chunk {
             for (let z = 0; z < CHUNK_SIZE; z++) {
                 for (let x = 0; x < CHUNK_SIZE; x++) {
                     const blockType = this.getBlock(x, y, z);
-                    if (blockType === BLOCKS.AIR) continue;
+                    if (blockType === BLOCKS.AIR || blockType === BLOCKS.CHEST_BLOCK) continue;
 
                     const wx = wxBase + x;
                     const wz = wzBase + z;
@@ -448,7 +448,8 @@ function calculateVertexAO(wx, wy, wz, face, getNeighborBlock, blockType) {
 
     const isSolid = (dx, dy, dz) => {
         const type = getNeighborBlock(wx + dx, wy + dy, wz + dz);
-        if (type === BLOCKS.AIR || type === BLOCKS.WATER || type === BLOCKS.LAVA || type === BLOCKS.GLASS || type === BLOCKS.LEAVES || type === BLOCKS.TORCH) return false;
+        const props = getBlockProperties(type);
+        if (type === BLOCKS.AIR || props.isLiquid || type === BLOCKS.GLASS || type === BLOCKS.LEAVES || type === BLOCKS.TORCH || props.isCross) return false;
         return true;
     };
 
@@ -545,7 +546,16 @@ export class World {
 
         const chunk = this.getChunkAt(wx, wz);
         if (chunk) {
+            const oldType = chunk.getBlock(lx, wy, lz);
             chunk.setBlock(lx, wy, lz, type);
+            
+            // Register chest placement/removal
+            if (oldType === window.BLOCKS.CHEST_BLOCK && type !== window.BLOCKS.CHEST_BLOCK) {
+                if (this.onChestRemoved) this.onChestRemoved(wx, wy, wz);
+            } else if (oldType !== window.BLOCKS.CHEST_BLOCK && type === window.BLOCKS.CHEST_BLOCK) {
+                if (this.onChestPlaced) this.onChestPlaced(wx, wy, wz);
+            }
+
             if (!this.chunksToBuild.includes(chunk)) {
                 this.chunksToBuild.push(chunk);
             }
@@ -692,6 +702,21 @@ export class World {
             chunk.blocks = terrainGenerator(chunk.cx, chunk.cz);
             chunk.dirty = true;
             this.chunksToBuild.push(chunk);
+
+            // Register chests
+            if (this.onChestGenerated) {
+                for (let i = 0; i < chunk.blocks.length; i++) {
+                    if (chunk.blocks[i] === window.BLOCKS.CHEST_BLOCK) { // Assuming window.BLOCKS is available
+                        const y = Math.floor(i / (16 * 16));
+                        const rem = i % (16 * 16);
+                        const z = Math.floor(rem / 16);
+                        const x = rem % 16;
+                        const wx = chunk.cx * 16 + x;
+                        const wz = chunk.cz * 16 + z;
+                        this.onChestGenerated(wx, y, wz);
+                    }
+                }
+            }
 
             // Mark neighbors dirty
             const neighbors = [[-1, 0], [1, 0], [0, -1], [0, 1]];

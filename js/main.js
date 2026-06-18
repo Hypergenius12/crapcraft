@@ -43,6 +43,52 @@ function findSafeSpawn(params) {
     return { x: CHUNK_SIZE / 2, y: CHUNK_HEIGHT + 10, z: CHUNK_SIZE / 2 };
 }
 
+class ChestVisual {
+    constructor(scene, x, y, z, atlas) {
+        this.scene = scene;
+        this.pos = { x, y, z };
+        this.isOpen = false;
+        this.lidAngle = 0;
+        this.targetAngle = 0;
+        
+        this.group = new THREE.Group();
+        this.group.position.set(x + 0.5, y, z + 0.5);
+
+        const tex = atlas.texture;
+        
+        // Base
+        const baseGeo = new THREE.BoxGeometry(0.875, 0.625, 0.875);
+        baseGeo.translate(0, 0.3125, 0); // Origin at bottom center
+        const baseMat = new THREE.MeshLambertMaterial({ map: tex }); // Uses same texture for now, could be specific UVs
+        const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+        this.group.add(baseMesh);
+
+        // Lid
+        const lidGeo = new THREE.BoxGeometry(0.875, 0.25, 0.875);
+        lidGeo.translate(0, 0.125, 0.4375); // Origin at hinge (back edge)
+        const lidMat = new THREE.MeshLambertMaterial({ map: tex });
+        this.lidMesh = new THREE.Mesh(lidGeo, lidMat);
+        this.lidMesh.position.set(0, 0.625, -0.4375);
+        this.group.add(this.lidMesh);
+
+        this.scene.add(this.group);
+    }
+
+    update(dt) {
+        this.targetAngle = this.isOpen ? -Math.PI / 2.5 : 0;
+        this.lidAngle += (this.targetAngle - this.lidAngle) * 10 * dt;
+        this.lidMesh.rotation.x = this.lidAngle;
+    }
+
+    dispose() {
+        this.scene.remove(this.group);
+        this.group.children.forEach(c => {
+            c.geometry.dispose();
+            c.material.dispose();
+        });
+    }
+}
+
 class Game {
     constructor() {
         this.engine = new GameEngine();
@@ -81,6 +127,30 @@ class Game {
         // Planet Generation
         this.planetParams = generatePlanetParams(rawSeed);
         this.world = new World(this.engine.scene, this.atlas);
+
+        // Chest Management
+        this.chestInventories = new Map();
+        this.chestVisuals = new Map();
+        
+        this.world.onChestGenerated = (x, y, z) => this._addChest(x, y, z, true);
+        this.world.onChestPlaced = (x, y, z) => this._addChest(x, y, z, false);
+        this.world.onChestRemoved = (x, y, z) => {
+            const key = `${x},${y},${z}`;
+            if (this.chestVisuals.has(key)) {
+                this.chestVisuals.get(key).dispose();
+                this.chestVisuals.delete(key);
+            }
+            if (this.chestInventories.has(key)) {
+                // Drop items from chest
+                const inv = this.chestInventories.get(key);
+                for (let slot of inv) {
+                    if (slot && slot.item) {
+                        this.entityManager.spawnItem(slot.item, slot.count, new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5));
+                    }
+                }
+                this.chestInventories.delete(key);
+            }
+        };
 
         // Expose BLOCKS globally for UISystem recipe matching
         window.BLOCKS = BLOCKS;
@@ -202,6 +272,77 @@ class Game {
         });
 
         this.loop();
+    }
+
+    _addChest(x, y, z, isGenerated = false) {
+        const key = `${x},${y},${z}`;
+        if (!this.chestInventories.has(key)) {
+            // Default empty 27-slot inventory
+            const inv = new Array(27).fill(null);
+            this.chestInventories.set(key, inv);
+
+            if (isGenerated) {
+                // Determine loot type based on height / location
+                // Simple RNG based on coords
+                const seed = Math.sin(x * 31 + y * 7 + z * 13) * 10000;
+                const rng = () => {
+                    const val = Math.sin(seed + Math.random()) * 10000;
+                    return val - Math.floor(val);
+                };
+
+                let lootTable = [];
+                if (y < 15) {
+                    // Dungeon
+                    lootTable = [
+                        { item: new Item('material', 'iron_ingot', {}, 'Iron Ingot'), maxCount: 4, chance: 0.6 },
+                        { item: new Item('material', 'gold_ingot', {}, 'Gold Ingot'), maxCount: 3, chance: 0.4 },
+                        { item: new Item('material', 'diamond', {}, 'Diamond'), maxCount: 2, chance: 0.1 },
+                        { item: new Item('material', 'mana_crystal', {}, 'Mana Crystal'), maxCount: 3, chance: 0.3 },
+                        { item: new Item('equipment', 'sword_iron', {}, 'Iron Sword'), maxCount: 1, chance: 0.2 },
+                        { item: Item.blockItem(window.BLOCKS.TORCH, 'Torch'), maxCount: 16, chance: 0.8 }
+                    ];
+                } else if (y >= 15 && y < 25) {
+                    // Cabin / surface
+                    lootTable = [
+                        { item: Item.blockItem(window.BLOCKS.WOOD, 'Wood'), maxCount: 10, chance: 0.7 },
+                        { item: Item.blockItem(window.BLOCKS.PLANKS, 'Planks'), maxCount: 20, chance: 0.8 },
+                        { item: new Item('material', 'stick', {}, 'Stick'), maxCount: 12, chance: 0.6 },
+                        { item: Item.blockItem(window.BLOCKS.COBBLESTONE, 'Cobblestone'), maxCount: 32, chance: 0.5 },
+                        { item: new Item('equipment', 'axe_stone', {}, 'Stone Axe'), maxCount: 1, chance: 0.3 },
+                        { item: new Item('material', 'coal', {}, 'Coal'), maxCount: 8, chance: 0.5 }
+                    ];
+                } else {
+                    // Wizard tower (high up)
+                    lootTable = [
+                        { item: new Item('material', 'mana_crystal', {}, 'Mana Crystal'), maxCount: 5, chance: 0.7 },
+                        { item: new Item('material', 'diamond', {}, 'Diamond'), maxCount: 2, chance: 0.3 },
+                        { item: Item.blockItem(window.BLOCKS.GLOWSTONE, 'Glowstone'), maxCount: 4, chance: 0.5 },
+                        { item: new Item('wand', 'wand_apprentice', { wand: { maxSlots: 3, spellSlots: [null, null, null], mana: 100, maxMana: 100 } }, 'Apprentice Wand'), maxCount: 1, chance: 0.2 },
+                        { item: new Item('spell', 'fire', { spell: { element: 'fire', type: 'projectile', cost: 10, modifiers: [] } }, 'Fire Spell'), maxCount: 1, chance: 0.4 },
+                        { item: new Item('spell', 'ice', { spell: { element: 'ice', type: 'projectile', cost: 10, modifiers: [] } }, 'Ice Spell'), maxCount: 1, chance: 0.4 }
+                    ];
+                }
+
+                // Populate 3-8 slots randomly
+                const numSlots = 3 + Math.floor(rng() * 6);
+                for (let i = 0; i < numSlots; i++) {
+                    const slotIdx = Math.floor(rng() * 27);
+                    if (!inv[slotIdx]) {
+                        const entry = lootTable[Math.floor(rng() * lootTable.length)];
+                        if (rng() < entry.chance) {
+                            const count = 1 + Math.floor(rng() * entry.maxCount);
+                            const itemClone = Object.assign(Object.create(Object.getPrototypeOf(entry.item)), entry.item);
+                            itemClone.stackable = entry.maxCount > 1;
+                            inv[slotIdx] = { item: itemClone, count: count };
+                        }
+                    }
+                }
+            }
+        }
+        if (!this.chestVisuals.has(key)) {
+            const visual = new ChestVisual(this.engine.scene, x, y, z, this.atlas);
+            this.chestVisuals.set(key, visual);
+        }
     }
 
     _createHUDElements() {
@@ -474,6 +615,24 @@ class Game {
         // Right click actions
         if (this.input.mouse.rightClick) {
             const slot = this.player.inventory.slots[this.player.selectedSlot];
+
+            if (hit.hit && hit.blockType === window.BLOCKS.CHEST_BLOCK) {
+                // Open Chest
+                this.audio.playClick(); // Or a specific chest open sound
+                const key = `${hit.blockPos.x},${hit.blockPos.y},${hit.blockPos.z}`;
+                const visual = this.chestVisuals.get(key);
+                if (visual) visual.isOpen = true;
+                
+                this.ui.toggleChest(hit.blockPos.x, hit.blockPos.y, hit.blockPos.z, this.chestInventories.get(key), () => {
+                    // On close callback
+                    if (visual) visual.isOpen = false;
+                    this.input.requestPointerLock();
+                });
+                document.exitPointerLock();
+                this.input.mouse.rightClick = false;
+                return;
+            }
+
             if (slot && slot.item.type === 'wand') {
                 if (this.player.activeSpellIndex === undefined) this.player.activeSpellIndex = 0;
                 this.player.activeSpellIndex = (this.player.activeSpellIndex + 1) % slot.item.data.wand.maxSlots;
@@ -640,6 +799,10 @@ class Game {
         this.particles.update(dt);
         this.cloudSystem.update(dt, this.engine.camera.position);
         this.entityManager.update(dt, this.world, this.player.position, this.player.inventory, this.player, this.lighting.timeOfDay);
+
+        for (let visual of this.chestVisuals.values()) {
+            visual.update(dt);
+        }
 
         const _tempVec3 = new THREE.Vector3();
         
