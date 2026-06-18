@@ -54,8 +54,8 @@ export class PlanetParams {
         this.seaLevel = this.baseHeight - 8;
         
         // Caves
-        this.caveScale = 20 + rng() * 30;
-        this.caveThreshold = 0.5 + rng() * 0.2; // Higher = fewer caves
+        this.caveScale = 15 + rng() * 15; // Tighter noise to make them more distinct
+        this.caveThreshold = 0.25 + rng() * 0.1; // Lowered significantly to create massive sprawling caves
 
         this.dungeonFrequency = 0.02 + rng() * 0.03; // ~2-5% per chunk chance
 
@@ -494,7 +494,12 @@ function carveGlobalDungeons(blocks, cx, cz, params) {
 
 function generateDungeonStructure(rng, startX, startY, startZ) {
     const rooms = [];
-    const queue = [{ x: startX, y: startY, z: startZ, w: 9, h: 5, d: 9, depth: 0, bossChance: 0.01 }];
+    
+    // Add a huge entrance shaft piercing the surface to make it discoverable
+    rooms.push({ x: startX, y: startY, z: startZ, w: 7, h: 180, d: 7, type: 'entrance' });
+    
+    // Start normal dungeon generation
+    const queue = [{ x: startX, y: startY, z: startZ, w: 11, h: 6, d: 11, depth: 0, bossChance: 0.01 }];
     const maxRooms = 25;
     
     while (queue.length > 0 && rooms.length < maxRooms) {
@@ -589,7 +594,12 @@ function carveRoomInChunk(blocks, cx, cz, room) {
                         else safeSetBlock(blocks, lx, wy, lz, BLOCKS.DUNGEON_BRICK);
                     }
                 } else {
-                    safeSetBlock(blocks, lx, wy, lz, BLOCKS.AIR);
+                    if (room.type === 'entrance' && wy <= minY + 2) {
+                        // Put water at the bottom of the entrance shaft to prevent fatal falls
+                        safeSetBlock(blocks, lx, wy, lz, BLOCKS.WATER);
+                    } else {
+                        safeSetBlock(blocks, lx, wy, lz, BLOCKS.AIR);
+                    }
                     // Add glowstone lighting occasionally
                     if (room.type === 'boss' && wy === maxY - 1 && (wx === minX+2 || wx === maxX-2) && (wz === minZ+2 || wz === maxZ-2)) {
                         safeSetBlock(blocks, lx, wy, lz, ((lx + wy + lz) % 2 === 0) ? BLOCKS.GLOWSTONE : BLOCKS.PORTAL_FRAME);

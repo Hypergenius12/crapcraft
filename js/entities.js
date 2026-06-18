@@ -125,9 +125,10 @@ export class Player {
         }
 
         // Physics variables
-        const gravity = (inWater || inLava) ? -5 : -25;
-        const drag = (inWater || inLava) ? 5 : 10;
-        const jumpForce = (inWater || inLava) ? 4 : 9;
+        // Make the player much more floaty in water (lower gravity)
+        const gravity = (inWater || inLava) ? -1.5 : -25;
+        const drag = (inWater || inLava) ? 6 : 10;
+        const jumpForce = (inWater || inLava) ? 3.5 : 9;
 
         // X/Z velocity update
         this.velocity.x += moveDir.x * speed * 10 * dt;
@@ -750,46 +751,41 @@ export const MOB_TYPES = {
             mesh.position.y += Math.sin(age * 2) * 0.004;
         }
     },
-    FISH: {
-        name: 'Fish', health: 5, damage: 0, speed: 2.5, hostile: false, color: 0xffaa00,
-        size: 0.3, xpDrop: 2, lootChance: 0.1, waterOnly: true,
+    TROPICAL_FISH: {
+        name: 'Tropical Fish', health: 3, damage: 0, speed: 2.5, hostile: false, color: 0xff8800,
+        size: 0.25, xpDrop: 1, lootChance: 0.1, waterOnly: true,
         buildMesh: () => {
             const group = new THREE.Group();
-            // Body
-            const body = createBodyPart(new THREE.BoxGeometry(0.1, 0.2, 0.3), 0xffaa00);
-            body.position.y = 0.2;
+            // Body (Orange and White)
+            const body = createBodyPart(new THREE.BoxGeometry(0.08, 0.15, 0.25), 0xff8800);
+            body.position.y = 0.15;
             group.add(body);
+            // White stripe
+            const stripe = createBodyPart(new THREE.BoxGeometry(0.085, 0.16, 0.05), 0xffffff);
+            stripe.position.set(0, 0.15, 0);
+            group.add(stripe);
             // Tail
-            const tailGeo = new THREE.BoxGeometry(0.02, 0.15, 0.15);
-            const tail = createBodyPart(tailGeo, 0xff8800);
-            tail.position.set(0, 0.2, -0.2);
+            const tailGeo = new THREE.BoxGeometry(0.02, 0.1, 0.1);
+            const tail = createBodyPart(tailGeo, 0xffffff);
+            tail.position.set(0, 0.15, -0.15);
             tail.name = 'tail';
             group.add(tail);
             // Fins
-            const finGeo = new THREE.BoxGeometry(0.15, 0.02, 0.1);
-            const lf = createBodyPart(finGeo, 0xff8800);
-            lf.position.set(-0.08, 0.15, 0);
-            lf.rotation.z = -0.2;
+            const finGeo = new THREE.BoxGeometry(0.1, 0.02, 0.08);
+            const lf = createBodyPart(finGeo, 0xffaa00);
+            lf.position.set(-0.06, 0.1, 0);
+            lf.rotation.z = -0.3;
             lf.name = 'leftFin';
             group.add(lf);
-            const rf = createBodyPart(finGeo, 0xff8800);
-            rf.position.set(0.08, 0.15, 0);
-            rf.rotation.z = 0.2;
+            const rf = createBodyPart(finGeo, 0xffaa00);
+            rf.position.set(0.06, 0.1, 0);
+            rf.rotation.z = 0.3;
             rf.name = 'rightFin';
             group.add(rf);
-            // Eyes
-            const eyeGeo = new THREE.BoxGeometry(0.02, 0.04, 0.04);
-            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-            const le = new THREE.Mesh(eyeGeo, eyeMat);
-            le.position.set(-0.051, 0.22, 0.1);
-            group.add(le);
-            const re = new THREE.Mesh(eyeGeo, eyeMat);
-            re.position.set(0.051, 0.22, 0.1);
-            group.add(re);
             return group;
         },
         animate: (mesh, dt, age, isMoving) => {
-            const speed = isMoving ? 20 : 5;
+            const speed = isMoving ? 25 : 8;
             const tail = mesh.getObjectByName('tail');
             if (tail) tail.rotation.y = Math.sin(age * speed) * 0.4;
             const lf = mesh.getObjectByName('leftFin');
@@ -798,6 +794,142 @@ export const MOB_TYPES = {
             if (rf) rf.rotation.x = Math.sin(age * speed) * 0.2;
         }
     },
+    SALMON: {
+        name: 'Salmon', health: 6, damage: 0, speed: 3.5, hostile: false, color: 0xff5555,
+        size: 0.4, xpDrop: 3, lootChance: 0.15, waterOnly: true,
+        buildMesh: () => {
+            const group = new THREE.Group();
+            // Body
+            const body = createBodyPart(new THREE.BoxGeometry(0.12, 0.25, 0.45), 0xdd4444);
+            body.position.y = 0.2;
+            group.add(body);
+            // Greenish back
+            const back = createBodyPart(new THREE.BoxGeometry(0.125, 0.1, 0.45), 0x335533);
+            back.position.set(0, 0.28, 0);
+            group.add(back);
+            // Tail
+            const tailGeo = new THREE.BoxGeometry(0.02, 0.2, 0.15);
+            const tail = createBodyPart(tailGeo, 0x335533);
+            tail.position.set(0, 0.2, -0.28);
+            tail.name = 'tail';
+            group.add(tail);
+            // Fins
+            const finGeo = new THREE.BoxGeometry(0.15, 0.02, 0.15);
+            const lf = createBodyPart(finGeo, 0xcc3333);
+            lf.position.set(-0.08, 0.1, 0);
+            lf.rotation.z = -0.2;
+            lf.name = 'leftFin';
+            group.add(lf);
+            const rf = createBodyPart(finGeo, 0xcc3333);
+            rf.position.set(0.08, 0.1, 0);
+            rf.rotation.z = 0.2;
+            rf.name = 'rightFin';
+            group.add(rf);
+            return group;
+        },
+        animate: (mesh, dt, age, isMoving) => {
+            const speed = isMoving ? 18 : 5;
+            const tail = mesh.getObjectByName('tail');
+            if (tail) tail.rotation.y = Math.sin(age * speed) * 0.5;
+            const lf = mesh.getObjectByName('leftFin');
+            const rf = mesh.getObjectByName('rightFin');
+            if (lf) lf.rotation.x = Math.sin(age * speed) * 0.2;
+            if (rf) rf.rotation.x = Math.sin(age * speed) * 0.2;
+        }
+    },
+    PUFFERFISH: {
+        name: 'Pufferfish', health: 4, damage: 2, speed: 1.5, hostile: true, color: 0xffee00,
+        size: 0.35, xpDrop: 4, lootChance: 0.2, waterOnly: true,
+        buildMesh: () => {
+            const group = new THREE.Group();
+            // Boxy Body
+            const body = createBodyPart(new THREE.BoxGeometry(0.3, 0.3, 0.3), 0xffee00);
+            body.position.y = 0.2;
+            body.name = 'body';
+            group.add(body);
+            // Eyes
+            const eyeGeo = new THREE.BoxGeometry(0.05, 0.05, 0.05);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const le = new THREE.Mesh(eyeGeo, eyeMat);
+            le.position.set(-0.16, 0.25, 0.1);
+            group.add(le);
+            const re = new THREE.Mesh(eyeGeo, eyeMat);
+            re.position.set(0.16, 0.25, 0.1);
+            group.add(re);
+            // Tail
+            const tailGeo = new THREE.BoxGeometry(0.05, 0.1, 0.1);
+            const tail = createBodyPart(tailGeo, 0xeecc00);
+            tail.position.set(0, 0.2, -0.2);
+            tail.name = 'tail';
+            group.add(tail);
+            return group;
+        },
+        animate: (mesh, dt, age, isMoving) => {
+            const speed = isMoving ? 15 : 4;
+            const tail = mesh.getObjectByName('tail');
+            if (tail) tail.rotation.y = Math.sin(age * speed) * 0.4;
+            // Puffs up rhythmically when moving
+            const body = mesh.getObjectByName('body');
+            if (body) {
+                const puff = isMoving ? 1.0 + Math.abs(Math.sin(age * 5)) * 0.4 : 1.0;
+                body.scale.set(puff, puff, puff);
+            }
+        }
+    },
+    TURTLE: {
+        name: 'Turtle', health: 30, damage: 0, speed: 1.2, hostile: false, color: 0x228822,
+        size: 0.6, xpDrop: 5, lootChance: 0.5,
+        buildMesh: () => {
+            const group = new THREE.Group();
+            // Shell
+            const shell = createBodyPart(new THREE.BoxGeometry(0.6, 0.25, 0.7), 0x115511);
+            shell.position.y = 0.3;
+            group.add(shell);
+            // Body (under shell)
+            const body = createBodyPart(new THREE.BoxGeometry(0.5, 0.15, 0.6), 0x88cc88);
+            body.position.y = 0.2;
+            group.add(body);
+            // Head
+            const head = createBodyPart(new THREE.BoxGeometry(0.2, 0.15, 0.2), 0x88cc88);
+            head.position.set(0, 0.25, 0.4);
+            head.name = 'head';
+            group.add(head);
+            // Flippers
+            const flipperGeo = new THREE.BoxGeometry(0.3, 0.05, 0.2);
+            const fl1 = createBodyPart(flipperGeo, 0x88cc88);
+            fl1.position.set(-0.35, 0.15, 0.2);
+            fl1.name = 'fl1';
+            group.add(fl1);
+            const fl2 = createBodyPart(flipperGeo, 0x88cc88);
+            fl2.position.set(0.35, 0.15, 0.2);
+            fl2.name = 'fl2';
+            group.add(fl2);
+            const fl3 = createBodyPart(flipperGeo, 0x88cc88);
+            fl3.position.set(-0.3, 0.15, -0.2);
+            fl3.name = 'fl3';
+            group.add(fl3);
+            const fl4 = createBodyPart(flipperGeo, 0x88cc88);
+            fl4.position.set(0.3, 0.15, -0.2);
+            fl4.name = 'fl4';
+            group.add(fl4);
+            return group;
+        },
+        animate: (mesh, dt, age, isMoving) => {
+            const speed = isMoving ? 5 : 1;
+            const swing = Math.sin(age * speed) * 0.3;
+            const fl1 = mesh.getObjectByName('fl1');
+            const fl2 = mesh.getObjectByName('fl2');
+            const fl3 = mesh.getObjectByName('fl3');
+            const fl4 = mesh.getObjectByName('fl4');
+            const head = mesh.getObjectByName('head');
+            
+            if (fl1) fl1.rotation.y = swing;
+            if (fl2) fl2.rotation.y = -swing;
+            if (fl3) fl3.rotation.y = -swing;
+            if (fl4) fl4.rotation.y = swing;
+            if (head) head.rotation.y = Math.sin(age * 2) * 0.1;
+        }
+    }
     BIRD: {
         name: 'Bird', health: 5, damage: 0, speed: 4, hostile: false, color: 0x33aaee,
         size: 0.3, xpDrop: 2, lootChance: 0.1, flying: true,
@@ -842,14 +974,18 @@ export const MOB_TYPES = {
 
 // Weighted mob type table for spawning
 const MOB_SPAWN_WEIGHTS = [
-    { type: 'SLIME', weight: 25 },
-    { type: 'GOBLIN', weight: 20 },
+    { type: 'SLIME', weight: 20 },
+    { type: 'GOBLIN', weight: 15 },
     { type: 'ZOMBIE', weight: 15 },
     { type: 'SKELETON', weight: 15 },
-    { type: 'SPIDER', weight: 12 },
-    { type: 'BAT', weight: 8 },
+    { type: 'SPIDER', weight: 10 },
+    { type: 'BAT', weight: 5 },
     { type: 'WISP', weight: 5 },
-    { type: 'BIRD', weight: 20 },
+    { type: 'BIRD', weight: 15 },
+    { type: 'TROPICAL_FISH', weight: 25 }, // High spawn rate for aquatic life
+    { type: 'SALMON', weight: 20 },
+    { type: 'PUFFERFISH', weight: 10 },
+    { type: 'TURTLE', weight: 10 },
 ];
 const TOTAL_MOB_WEIGHT = MOB_SPAWN_WEIGHTS.reduce((s, e) => s + e.weight, 0);
 
