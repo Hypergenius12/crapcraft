@@ -383,14 +383,15 @@ class Game {
         if (!document.getElementById('minimap-overlay')) {
             const mmo = document.createElement('div');
             mmo.id = 'minimap-overlay';
-            // Position matches OpenGL viewport rx, ry from top right.
-            // mapSize=200, padding=20.
-            mmo.style.cssText = 'position: absolute; top: 20px; right: 20px; width: 200px; height: 200px; pointer-events: none; z-index: 100; font-family: Outfit, sans-serif;';
+            mmo.style.cssText = 'position: absolute; top: 20px; right: 20px; width: 200px; height: 200px; pointer-events: none; z-index: 100; font-family: Outfit, sans-serif; border: 4px solid #5a3a22; border-radius: 50%; overflow: hidden; box-shadow: 0 0 15px rgba(0,0,0,0.8); background: radial-gradient(circle, transparent 40%, rgba(90, 58, 34, 0.4) 100%);';
             mmo.innerHTML = `
-                <div style="position: absolute; top: 5px; left: 50%; transform: translateX(-50%); color: white; font-weight: bold; text-shadow: 1px 1px 0 #000;">N</div>
-                <div style="position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); color: white; font-weight: bold; text-shadow: 1px 1px 0 #000;">S</div>
-                <div style="position: absolute; top: 50%; left: 5px; transform: translateY(-50%); color: white; font-weight: bold; text-shadow: 1px 1px 0 #000;">W</div>
-                <div style="position: absolute; top: 50%; right: 5px; transform: translateY(-50%); color: white; font-weight: bold; text-shadow: 1px 1px 0 #000;">E</div>
+                <!-- This covers the square canvas corners if needed, but actually since we add border-radius to mmo, we can just mask it! Wait, mmo is on top, not a mask. -->
+                <div style="position: absolute; top: -4px; left: -4px; right: -4px; bottom: -4px; border-radius: 50%; box-shadow: 0 0 0 100px #222; pointer-events: none;"></div>
+                <div style="position: absolute; top: 8px; left: 50%; transform: translateX(-50%); color: #ffaa55; font-weight: bold; text-shadow: 1px 1px 2px #000; font-size: 14px;">N</div>
+                <div style="position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); color: #ffaa55; font-weight: bold; text-shadow: 1px 1px 2px #000; font-size: 14px;">S</div>
+                <div style="position: absolute; top: 50%; left: 8px; transform: translateY(-50%); color: #ffaa55; font-weight: bold; text-shadow: 1px 1px 2px #000; font-size: 14px;">W</div>
+                <div style="position: absolute; top: 50%; right: 8px; transform: translateY(-50%); color: #ffaa55; font-weight: bold; text-shadow: 1px 1px 2px #000; font-size: 14px;">E</div>
+                <div id="minimap-player-arrow" style="position: absolute; top: 50%; left: 50%; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 16px solid #ff3333; transform-origin: 50% 50%; margin-left: -6px; margin-top: -8px; filter: drop-shadow(0 0 3px black);"></div>
             `;
             document.body.appendChild(mmo);
         }
@@ -881,8 +882,9 @@ class Game {
             const rx = window.innerWidth - mapSize - padding;
             const ry = window.innerHeight - mapSize - padding;
             
-            this.minimapCamera.position.set(this.player.position.x, 250, this.player.position.z);
-            this.minimapCamera.lookAt(this.player.position.x, 0, this.player.position.z);
+            // Tilt the camera for a 2.5D map look (isometric-ish orthographic)
+            this.minimapCamera.position.set(this.player.position.x, this.player.position.y + 100, this.player.position.z + 40);
+            this.minimapCamera.lookAt(this.player.position.x, this.player.position.y, this.player.position.z);
             
             this.engine.renderer.setViewport(rx, ry, mapSize, mapSize);
             this.engine.renderer.setScissor(rx, ry, mapSize, mapSize);
@@ -892,6 +894,7 @@ class Game {
             this.engine.renderer.clear(); 
             
             this.viewModel.visible = false; // Don't render hands in minimap
+            if (this.cloudSystem && this.cloudSystem.clouds) this.cloudSystem.clouds.visible = false; // Hide clouds
             
             // Optional: disable fog for minimap so we can see clearly
             const oldFog = this.engine.scene.fog;
@@ -899,8 +902,17 @@ class Game {
             
             this.engine.renderer.render(this.engine.scene, this.minimapCamera);
             
+            // Update player indicator rotation
+            const arrow = document.getElementById('minimap-player-arrow');
+            if (arrow) {
+                const lookDir = this.player.getLookDirection();
+                const angle = Math.atan2(lookDir.x, lookDir.z); 
+                arrow.style.transform = `rotate(${angle + Math.PI}rad)`;
+            }
+            
             this.engine.scene.fog = oldFog;
             this.viewModel.visible = true;
+            if (this.cloudSystem && this.cloudSystem.clouds) this.cloudSystem.clouds.visible = true; // Restore clouds
             if (this.engine.scene.fog) {
                 this.engine.scene.fog.density = this.engine.scene.fog.baseDensity;
             }
