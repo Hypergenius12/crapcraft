@@ -158,6 +158,21 @@ canvas#game-canvas {
     width: 260px;
 }
 #health-container { position: fixed; bottom: 70px; left: 16px; }
+
+#debug-info {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    color: white;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    z-index: 100;
+    pointer-events: none;
+    line-height: 1.5;
+    text-shadow: 1px 1px 0 #000;
+}
 #mana-container { position: fixed; bottom: 44px; left: 16px; }
 
 .bar-icon {

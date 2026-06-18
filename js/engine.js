@@ -3,6 +3,7 @@
 // ============================================
 import * as THREE from 'three';
 import { BLOCKS, getBlockProperties, ATLAS_SIZE } from './textures.js';
+import { getBiomeParams } from './generation.js';
 
 export const CHUNK_SIZE = 16;
 export const CHUNK_HEIGHT = 128;
@@ -14,8 +15,8 @@ export class InputManager {
     constructor() {
         this.keys = { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, crouch: false };
         this.mouse = { dx: 0, dy: 0, leftClick: false, rightClick: false, scrollDelta: 0 };
-        this.menuKeys = { inventory: false, spellConfig: false, pause: false, planet: false, debug: false };
-        this._menuKeysDown = { inventory: false, spellConfig: false, pause: false, planet: false, debug: false };
+        this.menuKeys = { inventory: false, spellConfig: false, pause: false, planet: false, debug: false, dropItem: false };
+        this._menuKeysDown = { inventory: false, spellConfig: false, pause: false, planet: false, debug: false, dropItem: false };
         this.hotbarIndex = -1;
         this.isLocked = false;
         this.canvas = null;
@@ -26,7 +27,7 @@ export class InputManager {
 
         document.addEventListener('keydown', (e) => this.onKeyDown(e), false);
         document.addEventListener('keyup', (e) => this.onKeyUp(e), false);
-        
+
         document.addEventListener('mousemove', (e) => {
             if (this.isLocked) {
                 this.mouse.dx += e.movementX || 0;
@@ -83,35 +84,40 @@ export class InputManager {
 
     onKeyDown(e) {
         if (e.code === 'Tab' || e.code === 'F3') e.preventDefault();
-        if (!this.isLocked && !['Escape', 'KeyE', 'KeyF', 'KeyP', 'Tab', 'KeyI', 'F3'].includes(e.code)) return;
+        if (!this.isLocked && !['Escape', 'KeyE', 'KeyF', 'KeyP', 'Tab', 'KeyI', 'F3', 'KeyQ'].includes(e.code)) return;
 
-        switch(e.code) {
+        switch (e.code) {
             case 'KeyW': case 'ArrowUp': this.keys.forward = true; break;
             case 'KeyS': case 'ArrowDown': this.keys.backward = true; break;
             case 'KeyA': case 'ArrowLeft': this.keys.left = true; break;
             case 'KeyD': case 'ArrowRight': this.keys.right = true; break;
             case 'Space': this.keys.jump = true; break;
             case 'ShiftLeft': case 'ShiftRight': this.keys.sprint = true; break;
-            case 'ControlLeft': case 'KeyC': this.keys.crouch = true; break;
-            
+            case 'KeyC': this.keys.crouch = true; break;
+
             case 'Tab':
             case 'KeyI':
-            case 'KeyE': 
+            case 'KeyE':
                 if (!this._menuKeysDown.inventory) { this.menuKeys.inventory = true; this._menuKeysDown.inventory = true; }
                 break;
-            case 'KeyF': 
+            case 'KeyF':
                 if (!this._menuKeysDown.spellConfig) { this.menuKeys.spellConfig = true; this._menuKeysDown.spellConfig = true; }
                 break;
             case 'KeyP':
                 if (!this._menuKeysDown.planet) { this.menuKeys.planet = true; this._menuKeysDown.planet = true; }
                 break;
-            case 'Escape': 
+            case 'Escape':
                 if (!this._menuKeysDown.pause) { this.menuKeys.pause = true; this._menuKeysDown.pause = true; }
                 break;
             case 'F3':
+            case 'ControlLeft':
+            case 'ControlRight':
                 if (!this._menuKeysDown.debug) { this.menuKeys.debug = true; this._menuKeysDown.debug = true; }
                 break;
-            
+            case 'KeyQ':
+                if (!this._menuKeysDown.dropItem) { this.menuKeys.dropItem = true; this._menuKeysDown.dropItem = true; }
+                break;
+
             case 'Digit1': this.hotbarIndex = 0; break;
             case 'Digit2': this.hotbarIndex = 1; break;
             case 'Digit3': this.hotbarIndex = 2; break;
@@ -125,20 +131,21 @@ export class InputManager {
     }
 
     onKeyUp(e) {
-        switch(e.code) {
+        switch (e.code) {
             case 'KeyW': case 'ArrowUp': this.keys.forward = false; break;
             case 'KeyS': case 'ArrowDown': this.keys.backward = false; break;
             case 'KeyA': case 'ArrowLeft': this.keys.left = false; break;
             case 'KeyD': case 'ArrowRight': this.keys.right = false; break;
             case 'Space': this.keys.jump = false; break;
             case 'ShiftLeft': case 'ShiftRight': this.keys.sprint = false; break;
-            case 'ControlLeft': case 'KeyC': this.keys.crouch = false; break;
+            case 'KeyC': this.keys.crouch = false; break;
 
             case 'Tab': case 'KeyI': case 'KeyE': this._menuKeysDown.inventory = false; break;
             case 'KeyF': this._menuKeysDown.spellConfig = false; break;
             case 'KeyP': this._menuKeysDown.planet = false; break;
             case 'Escape': this._menuKeysDown.pause = false; break;
-            case 'F3': this._menuKeysDown.debug = false; break;
+            case 'F3': case 'ControlLeft': case 'ControlRight': this._menuKeysDown.debug = false; break;
+            case 'KeyQ': this._menuKeysDown.dropItem = false; break;
         }
     }
 }
@@ -161,14 +168,14 @@ export class GameEngine {
         this._renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false });
         this._renderer.setSize(window.innerWidth, window.innerHeight);
         this._renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        
+
         // Shadows
         this._renderer.shadowMap.enabled = true;
         this._renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
         // Color management
         this._renderer.outputColorSpace = THREE.SRGBColorSpace;
-        
+
         this.resize();
         window.addEventListener('resize', () => this.resize());
     }
@@ -191,12 +198,12 @@ export class GameEngine {
 
 // Face definitions: normal, vertices (x,y,z), ambient occlusion vertex indices
 const FACES = [
-    { dir: [0, 1, 0], v: [[0,1,1], [1,1,1], [1,1,0], [0,1,0]], name: 'top' }, // top
-    { dir: [0, -1, 0], v: [[0,0,0], [1,0,0], [1,0,1], [0,0,1]], name: 'bottom' }, // bottom
-    { dir: [1, 0, 0], v: [[1,0,1], [1,0,0], [1,1,0], [1,1,1]], name: 'side' }, // right
-    { dir: [-1, 0, 0], v: [[0,0,0], [0,0,1], [0,1,1], [0,1,0]], name: 'side' }, // left
-    { dir: [0, 0, 1], v: [[0,0,1], [1,0,1], [1,1,1], [0,1,1]], name: 'side' }, // front
-    { dir: [0, 0, -1], v: [[1,0,0], [0,0,0], [0,1,0], [1,1,0]], name: 'side' }, // back
+    { dir: [0, 1, 0], v: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]], name: 'top' }, // top
+    { dir: [0, -1, 0], v: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], name: 'bottom' }, // bottom
+    { dir: [1, 0, 0], v: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]], name: 'side' }, // right
+    { dir: [-1, 0, 0], v: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]], name: 'side' }, // left
+    { dir: [0, 0, 1], v: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], name: 'side' }, // front
+    { dir: [0, 0, -1], v: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], name: 'side' }, // back
 ];
 
 export class Chunk {
@@ -219,7 +226,7 @@ export class Chunk {
         this.dirty = true;
     }
 
-    buildMesh(atlas, materials, getNeighborBlock) {
+    buildMesh(atlas, getNeighborBlock) {
         const positions = [];
         const normals = [];
         const uvs = [];
@@ -230,7 +237,7 @@ export class Chunk {
         const glowCrossIndices = [];
         const waterIndices = [];
         const transparentIndices = [];
-        
+
         let vertexCount = 0;
 
         const wxBase = this.cx * CHUNK_SIZE;
@@ -249,20 +256,20 @@ export class Chunk {
                     if (props.isCross) {
                         const uvInfo = atlas.getUV(blockType, 'side');
                         // Diagonal 1
-                        positions.push(x, y, z,   x+1, y, z+1,   x+1, y+1, z+1,   x, y+1, z);
-                        normals.push(0.7, 0, -0.7,  0.7, 0, -0.7,  0.7, 0, -0.7,  0.7, 0, -0.7);
-                        uvs.push(uvInfo.u, uvInfo.v,  uvInfo.u + uvInfo.uSize, uvInfo.v,  uvInfo.u + uvInfo.uSize, uvInfo.v + uvInfo.vSize,  uvInfo.u, uvInfo.v + uvInfo.vSize);
-                        colors.push(1,1,1, 1,1,1, 1,1,1, 1,1,1);
-                        
+                        positions.push(x, y, z, x + 1, y, z + 1, x + 1, y + 1, z + 1, x, y + 1, z);
+                        normals.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0); // Point up for even lighting
+                        uvs.push(uvInfo.u, uvInfo.v, uvInfo.u + uvInfo.uSize, uvInfo.v, uvInfo.u + uvInfo.uSize, uvInfo.v + uvInfo.vSize, uvInfo.u, uvInfo.v + uvInfo.vSize);
+                        colors.push(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+
                         // Diagonal 2
-                        positions.push(x, y, z+1,   x+1, y, z,   x+1, y+1, z,   x, y+1, z+1);
-                        normals.push(0.7, 0, 0.7,  0.7, 0, 0.7,  0.7, 0, 0.7,  0.7, 0, 0.7);
-                        uvs.push(uvInfo.u, uvInfo.v,  uvInfo.u + uvInfo.uSize, uvInfo.v,  uvInfo.u + uvInfo.uSize, uvInfo.v + uvInfo.vSize,  uvInfo.u, uvInfo.v + uvInfo.vSize);
-                        colors.push(1,1,1, 1,1,1, 1,1,1, 1,1,1);
-                        
+                        positions.push(x, y, z + 1, x + 1, y, z, x + 1, y + 1, z, x, y + 1, z + 1);
+                        normals.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0); // Point up
+                        uvs.push(uvInfo.u, uvInfo.v, uvInfo.u + uvInfo.uSize, uvInfo.v, uvInfo.u + uvInfo.uSize, uvInfo.v + uvInfo.vSize, uvInfo.u, uvInfo.v + uvInfo.vSize);
+                        colors.push(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+
                         const indicesArray = blockType === BLOCKS.TORCH ? glowCrossIndices : crossIndices;
-                        indicesArray.push(vertexCount, vertexCount+1, vertexCount+2, vertexCount, vertexCount+2, vertexCount+3);
-                        indicesArray.push(vertexCount+4, vertexCount+5, vertexCount+6, vertexCount+4, vertexCount+6, vertexCount+7);
+                        indicesArray.push(vertexCount, vertexCount + 1, vertexCount + 2, vertexCount, vertexCount + 2, vertexCount + 3);
+                        indicesArray.push(vertexCount + 4, vertexCount + 5, vertexCount + 6, vertexCount + 4, vertexCount + 6, vertexCount + 7);
                         vertexCount += 8;
                         continue;
                     }
@@ -283,11 +290,11 @@ export class Chunk {
 
                         const bothLiquids = props.isLiquid && neighborProps.isLiquid;
 
-                        // Render face if neighbor is transparent (and not the same transparent block, like water)
+                        // Render face if neighbor is transparent (and not the same transparent block, like water or leaves)
                         if (neighborType === BLOCKS.AIR || (neighborProps.transparent && blockType !== neighborType && !bothLiquids)) {
-                            
+
                             const uvInfo = atlas.getUV(blockType, face.name);
-                            
+
                             // 4 vertices per face
                             for (let i = 0; i < 4; i++) {
                                 const v = face.v[i];
@@ -303,8 +310,26 @@ export class Chunk {
 
                             // Calculate ambient occlusion
                             const aoColor = calculateVertexAO(wx, y, wz, face, getNeighborBlock, blockType);
-                            for(let i=0; i<4; i++) {
-                                colors.push(aoColor[i], aoColor[i], aoColor[i]);
+                            
+                            let waterFade = 0;
+                            if (neighborType === BLOCKS.WATER || neighborType === BLOCKS.SWAMP_WATER) {
+                                let depth = Math.max(0, 22 - y);
+                                waterFade = Math.min(1.0, depth / 10.0);
+                            }
+                            
+                            const wc = { r: 0x11/255, g: 0x33/255, b: 0x66/255 };
+
+                            for (let i = 0; i < 4; i++) {
+                                let c = aoColor[i];
+                                if (waterFade > 0) {
+                                    colors.push(
+                                        c * (1 - waterFade) + wc.r * waterFade,
+                                        c * (1 - waterFade) + wc.g * waterFade,
+                                        c * (1 - waterFade) + wc.b * waterFade
+                                    );
+                                } else {
+                                    colors.push(c, c, c);
+                                }
                             }
 
                             // Add indices
@@ -316,7 +341,7 @@ export class Chunk {
                                     indicesArray = transparentIndices;
                                 }
                             }
-                            indicesArray.push(vertexCount, vertexCount+1, vertexCount+2, vertexCount, vertexCount+2, vertexCount+3);
+                            indicesArray.push(vertexCount, vertexCount + 1, vertexCount + 2, vertexCount, vertexCount + 2, vertexCount + 3);
                             vertexCount += 4;
                         }
                     }
@@ -327,7 +352,7 @@ export class Chunk {
         const geometry = new THREE.BufferGeometry();
         const allIndices = [...opaqueIndices, ...crossIndices, ...glowCrossIndices, ...waterIndices, ...transparentIndices];
         geometry.setIndex(allIndices);
-        
+
         geometry.addGroup(0, opaqueIndices.length, 0);
         geometry.addGroup(opaqueIndices.length, crossIndices.length, 1);
         geometry.addGroup(opaqueIndices.length + crossIndices.length, glowCrossIndices.length, 2);
@@ -339,11 +364,59 @@ export class Chunk {
         geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
         geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
 
-        // Use cached materials passed from World
+        // Use MeshLambertMaterial for classic Minecraft voxel shading style
+        const matOpaque = new THREE.MeshLambertMaterial({
+            map: atlas.texture,
+            vertexColors: true,
+            transparent: false,
+            alphaTest: 0.5,
+            side: THREE.DoubleSide
+        });
+
+        const matCross = new THREE.MeshLambertMaterial({
+            map: atlas.texture,
+            vertexColors: true,
+            transparent: false,
+            alphaTest: 0.5,
+            side: THREE.DoubleSide
+        });
+
+        const matGlowCross = new THREE.MeshLambertMaterial({
+            map: atlas.texture,
+            vertexColors: true,
+            transparent: false,
+            alphaTest: 0.5,
+            side: THREE.DoubleSide,
+            emissive: new THREE.Color(0xffffff),
+            emissiveMap: atlas.texture,
+            emissiveIntensity: 1.0
+        });
+
+        const matWater = new THREE.MeshLambertMaterial({
+            map: atlas.texture,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide
+        });
+
+        const matTransparent = new THREE.MeshLambertMaterial({
+            map: atlas.texture,
+            vertexColors: true,
+            transparent: true,
+            alphaTest: 0.5,
+            side: THREE.DoubleSide
+        });
+
+        const materials = [matOpaque, matCross, matGlowCross, matWater, matTransparent];
 
         if (this.mesh) {
             this.mesh.geometry.dispose();
-            // Do not dispose shared materials
+            if (Array.isArray(this.mesh.material)) {
+                this.mesh.material.forEach(m => m.dispose());
+            } else {
+                this.mesh.material.dispose();
+            }
             this.mesh.geometry = geometry;
             this.mesh.material = materials;
         } else {
@@ -360,7 +433,11 @@ export class Chunk {
         if (this.mesh) {
             if (this.mesh.parent) this.mesh.parent.remove(this.mesh);
             this.mesh.geometry.dispose();
-            // Do not dispose shared materials
+            if (Array.isArray(this.mesh.material)) {
+                this.mesh.material.forEach(m => m.dispose());
+            } else {
+                this.mesh.material.dispose();
+            }
             this.mesh = null;
         }
     }
@@ -378,7 +455,7 @@ function calculateVertexAO(wx, wy, wz, face, getNeighborBlock, blockType) {
     const vertexAO = (vx, vy, vz) => {
         let dx1 = 0, dy1 = 0, dz1 = 0;
         let dx2 = 0, dy2 = 0, dz2 = 0;
-        
+
         if (face.dir[0] !== 0) { // X face
             dy1 = vy === 1 ? 1 : -1;
             dz2 = vz === 1 ? 1 : -1;
@@ -415,41 +492,22 @@ export class World {
         this.atlas = atlas;
         this.chunks = new Map();
         this.renderDistance = 8;
-        
+
         // Chunk queues to avoid stuttering
         this.chunksToGenerate = [];
         this.chunksToBuild = [];
-        
-        // Fluid tick queue
-        this.liquidUpdates = new Map(); // Stores object {x, y, z} using string key to avoid duplicates
-        this.tickTimer = 0;
 
-        // Shared Chunk Materials
-        const matOpaque = new THREE.MeshLambertMaterial({ 
-            map: atlas.texture, vertexColors: true, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide
-        });
-        const matCross = new THREE.MeshLambertMaterial({
-            map: atlas.texture, vertexColors: true, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide
-        });
-        const matGlowCross = new THREE.MeshLambertMaterial({
-            map: atlas.texture, vertexColors: true, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide,
-            emissive: new THREE.Color(0xffffff), emissiveMap: atlas.texture, emissiveIntensity: 1.0
-        });
-        const matWater = new THREE.MeshLambertMaterial({
-            map: atlas.texture, vertexColors: true, transparent: true, opacity: 0.8, side: THREE.DoubleSide
-        });
-        const matTransparent = new THREE.MeshLambertMaterial({
-            map: atlas.texture, vertexColors: true, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide
-        });
-        this.chunkMaterials = [matOpaque, matCross, matGlowCross, matWater, matTransparent];
+        // Fluid tick queue
+        this.liquidUpdates = new Set(); // Stores strings of "x,y,z"
+        this.tickTimer = 0;
     }
 
     setRenderDistance(d) {
         this.renderDistance = d;
-        if (this.scene.fog && this.scene.fog.isFog) {
+        if (this.scene.fog) {
             const blocks = d * 16;
-            this.scene.fog.near = blocks * 0.75;
-            this.scene.fog.far = blocks;
+            this.scene.fog.density = 1.0 / (blocks * 0.75);
+            this.scene.fog.baseDensity = this.scene.fog.density;
         }
     }
 
@@ -457,10 +515,15 @@ export class World {
         return `${cx},${cz}`;
     }
 
+    getBiomeAt(wx, wz) {
+        if (!this.planetParams) return null;
+        return getBiomeParams(wx, wz, this.planetParams).biome;
+    }
+
     getBlock(wx, wy, wz) {
         wx = Math.floor(wx); wy = Math.floor(wy); wz = Math.floor(wz);
         if (wy < 0 || wy >= CHUNK_HEIGHT) return BLOCKS.AIR;
-        
+
         const cx = Math.floor(wx / CHUNK_SIZE);
         const cz = Math.floor(wz / CHUNK_SIZE);
         const lx = ((wx % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
@@ -487,11 +550,11 @@ export class World {
                 this.chunksToBuild.push(chunk);
             }
             // Trigger neighbor fluid updates
-            this.queueLiquidUpdate(wx, wy+1, wz);
-            this.queueLiquidUpdate(wx, wy, wz+1);
-            this.queueLiquidUpdate(wx, wy, wz-1);
-            this.queueLiquidUpdate(wx+1, wy, wz);
-            this.queueLiquidUpdate(wx-1, wy, wz);
+            this.queueLiquidUpdate(wx, wy + 1, wz);
+            this.queueLiquidUpdate(wx, wy, wz + 1);
+            this.queueLiquidUpdate(wx, wy, wz - 1);
+            this.queueLiquidUpdate(wx + 1, wy, wz);
+            this.queueLiquidUpdate(wx - 1, wy, wz);
             if (type === BLOCKS.WATER || type === BLOCKS.LAVA) this.queueLiquidUpdate(wx, wy, wz);
             // Check neighbors if block is on border
             if (lx === 0) this._markChunkDirty(cx - 1, cz);
@@ -521,45 +584,46 @@ export class World {
         const t = this.getBlock(x, y, z);
         const props = getBlockProperties(t);
         if (props.isLiquid) {
-            this.liquidUpdates.set(`${x},${y},${z}`, {x, y, z});
+            this.liquidUpdates.add(`${x},${y},${z}`);
         }
     }
 
     tickFluids() {
-        const updates = Array.from(this.liquidUpdates.values());
+        const updates = Array.from(this.liquidUpdates);
         this.liquidUpdates.clear();
-        
-        for (const {x, y, z} of updates) {
+
+        for (const key of updates) {
+            const [x, y, z] = key.split(',').map(Number);
             const type = this.getBlock(x, y, z);
             const props = getBlockProperties(type);
-            
+
             if (!props.isLiquid) continue;
 
-            const bBelow = this.getBlock(x, y-1, z);
+            const bBelow = this.getBlock(x, y - 1, z);
             const belowProps = getBlockProperties(bBelow);
-            
+
             if (bBelow === BLOCKS.AIR) {
-                this.setBlock(x, y-1, z, type);
+                this.setBlock(x, y - 1, z, type);
             } else if (!belowProps.isLiquid) {
                 // Spread sideways if blocked below
                 const sides = [
-                    [1,0], [-1,0], [0,1], [0,-1]
+                    [1, 0], [-1, 0], [0, 1], [0, -1]
                 ];
                 for (const [dx, dz] of sides) {
-                    const sideBlock = this.getBlock(x+dx, y, z+dz);
+                    const sideBlock = this.getBlock(x + dx, y, z + dz);
                     const sideProps = getBlockProperties(sideBlock);
-                    
+
                     if (sideBlock === BLOCKS.AIR) {
-                        this.setBlock(x+dx, y, z+dz, type);
+                        this.setBlock(x + dx, y, z + dz, type);
                     } else if (sideProps.isLiquid && sideBlock !== type) {
                         // Liquid mixing!
                         const isWater = type === BLOCKS.WATER || type === BLOCKS.SWAMP_WATER;
                         const isLava = type === BLOCKS.LAVA;
                         const sideIsWater = sideBlock === BLOCKS.WATER || sideBlock === BLOCKS.SWAMP_WATER;
                         const sideIsLava = sideBlock === BLOCKS.LAVA;
-                        
+
                         if (isWater && sideIsLava) {
-                            this.setBlock(x+dx, y, z+dz, BLOCKS.OBSIDIAN);
+                            this.setBlock(x + dx, y, z + dz, BLOCKS.OBSIDIAN);
                         } else if (isLava && sideIsWater) {
                             this.setBlock(x, y, z, BLOCKS.COBBLESTONE);
                         }
@@ -569,7 +633,7 @@ export class World {
                 // If water is above lava, turn lava into obsidian
                 const isWater = type === BLOCKS.WATER || type === BLOCKS.SWAMP_WATER;
                 if (isWater && bBelow === BLOCKS.LAVA) {
-                    this.setBlock(x, y-1, z, BLOCKS.OBSIDIAN);
+                    this.setBlock(x, y - 1, z, BLOCKS.OBSIDIAN);
                 }
             }
         }
@@ -584,7 +648,7 @@ export class World {
         // Find chunks that should be loaded
         for (let x = -this.renderDistance; x <= this.renderDistance; x++) {
             for (let z = -this.renderDistance; z <= this.renderDistance; z++) {
-                if (x*x + z*z <= this.renderDistance*this.renderDistance) {
+                if (x * x + z * z <= this.renderDistance * this.renderDistance) {
                     const cx = px + x;
                     const cz = pz + z;
                     const key = this.getChunkKey(cx, cz);
@@ -601,23 +665,36 @@ export class World {
 
         // Process a few chunks per frame for generating blocks
         let gensThisFrame = 0;
-        this.chunksToGenerate.sort((a, b) => {
-            const distA = Math.abs(a.cx - px) + Math.abs(a.cz - pz);
-            const distB = Math.abs(b.cx - px) + Math.abs(b.cz - pz);
-            return distB - distA;
-        });
-
+        
         while (this.chunksToGenerate.length > 0 && gensThisFrame < 1) {
-            const chunk = this.chunksToGenerate.pop();
+            let bestIdx = -1;
+            let bestDist = Infinity;
+            for (let i = 0; i < this.chunksToGenerate.length; i++) {
+                const chunk = this.chunksToGenerate[i];
+                const dist = Math.abs(chunk.cx - px) + Math.abs(chunk.cz - pz);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestIdx = i;
+                }
+            }
+            let chunk;
+            if (bestIdx > -1) {
+                const lastIdx = this.chunksToGenerate.length - 1;
+                chunk = this.chunksToGenerate[bestIdx];
+                this.chunksToGenerate[bestIdx] = this.chunksToGenerate[lastIdx];
+                this.chunksToGenerate.length = lastIdx;
+            } else {
+                chunk = this.chunksToGenerate.pop();
+            }
             // Don't generate if it was removed
             if (!this.chunks.has(this.getChunkKey(chunk.cx, chunk.cz))) continue;
-            
+
             chunk.blocks = terrainGenerator(chunk.cx, chunk.cz);
             chunk.dirty = true;
             this.chunksToBuild.push(chunk);
-            
+
             // Mark neighbors dirty
-            const neighbors = [[-1,0], [1,0], [0,-1], [0,1]];
+            const neighbors = [[-1, 0], [1, 0], [0, -1], [0, 1]];
             for (const [dx, dz] of neighbors) {
                 const nKey = this.getChunkKey(chunk.cx + dx, chunk.cz + dz);
                 const nChunk = this.chunks.get(nKey);
@@ -646,17 +723,28 @@ export class World {
 
         // Process a few chunks per frame
         let buildsThisFrame = 0;
-        // Prioritize chunks closer to player
-        this.chunksToBuild.sort((a, b) => {
-            const distA = Math.abs(a.cx - px) + Math.abs(a.cz - pz);
-            const distB = Math.abs(b.cx - px) + Math.abs(b.cz - pz);
-            return distB - distA; // pop from end
-        });
-
         while (this.chunksToBuild.length > 0 && buildsThisFrame < 2) {
-            const chunk = this.chunksToBuild.pop();
+            let bestIdx = -1;
+            let bestDist = Infinity;
+            for (let i = 0; i < this.chunksToBuild.length; i++) {
+                const chunk = this.chunksToBuild[i];
+                const dist = Math.abs(chunk.cx - px) + Math.abs(chunk.cz - pz);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestIdx = i;
+                }
+            }
+            let chunk;
+            if (bestIdx > -1) {
+                const lastIdx = this.chunksToBuild.length - 1;
+                chunk = this.chunksToBuild[bestIdx];
+                this.chunksToBuild[bestIdx] = this.chunksToBuild[lastIdx];
+                this.chunksToBuild.length = lastIdx;
+            } else {
+                chunk = this.chunksToBuild.pop();
+            }
             if (chunk.dirty) {
-                const mesh = chunk.buildMesh(this.atlas, this.chunkMaterials, (wx, wy, wz) => this.getBlock(wx, wy, wz));
+                const mesh = chunk.buildMesh(this.atlas, (wx, wy, wz) => this.getBlock(wx, wy, wz));
                 if (mesh && !mesh.parent) {
                     this.scene.add(mesh);
                 }
@@ -697,13 +785,13 @@ export class World {
         while (t <= maxDist) {
             const blockType = this.getBlock(ix, iy, iz);
             const props = getBlockProperties(blockType);
-            
+
             if (blockType !== BLOCKS.AIR && blockType !== BLOCKS.WATER && blockType !== BLOCKS.LAVA && (props.solid || props.isCross)) {
                 const hitNormal = new THREE.Vector3(0, 0, 0);
                 if (steppedIndex === 0) hitNormal.x = -stepX;
                 if (steppedIndex === 1) hitNormal.y = -stepY;
                 if (steppedIndex === 2) hitNormal.z = -stepZ;
-                
+
                 return {
                     hit: true,
                     position: origin.clone().add(direction.clone().multiplyScalar(t)),
@@ -746,7 +834,7 @@ export class World {
     collide(position, velocity, entityWidth = 0.6, entityHeight = 1.8) {
         // AABB vs Voxel Grid collision
         const hw = entityWidth / 2;
-        
+
         let targetX = position.x + velocity.x;
         let targetY = position.y + velocity.y;
         let targetZ = position.z + velocity.z;
@@ -777,12 +865,12 @@ export class World {
             velocity.y = 0;
             if (targetY < position.y) { // Falling down
                 grounded = true;
-                targetY = Math.floor(targetY) + 1.0; 
+                targetY = Math.floor(targetY) + 1.0;
             } else { // Jumping up and hitting ceiling
                 targetY = Math.floor(targetY + entityHeight - 0.01) - entityHeight;
             }
         }
-        
+
         // X-axis
         if (checkCollision(targetX, targetY, position.z)) {
             velocity.x = 0;

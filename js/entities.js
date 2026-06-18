@@ -181,7 +181,10 @@ export class Player {
         }
 
         // Update wand cooldowns
-        if (this.equippedWand) this.equippedWand.updateCooldowns(dt);
+        const activeItem = this.inventory.slots[this.selectedSlot];
+        if (activeItem && activeItem.item.type === 'wand') {
+            activeItem.item.data.wand.updateCooldowns(dt);
+        }
     }
 
     getEyePosition() {
@@ -215,8 +218,36 @@ export class Player {
 // Helper: Build mob body parts
 // ============================================
 
+function createMobMaterial(color, emissive = 0x000000, emissiveIntensity = 0) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 16;
+    canvas.height = 16;
+    const ctx = canvas.getContext('2d');
+    
+    // Fill base
+    ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+    ctx.fillRect(0, 0, 16, 16);
+    
+    // Add noise
+    const imgData = ctx.getImageData(0, 0, 16, 16);
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+        const v = (Math.random() - 0.5) * 40;
+        d[i] = Math.max(0, Math.min(255, d[i] + v));
+        d[i+1] = Math.max(0, Math.min(255, d[i+1] + v));
+        d[i+2] = Math.max(0, Math.min(255, d[i+2] + v));
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
+
+    return new THREE.MeshLambertMaterial({ map: texture, emissive, emissiveIntensity });
+}
+
 function createBodyPart(geo, color, emissive = 0x000000, emissiveIntensity = 0) {
-    const mat = new THREE.MeshLambertMaterial({ color, emissive, emissiveIntensity });
+    const mat = createMobMaterial(color, emissive, emissiveIntensity);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.castShadow = true;
     return mesh;
@@ -718,6 +749,94 @@ export const MOB_TYPES = {
             // Float bob
             mesh.position.y += Math.sin(age * 2) * 0.004;
         }
+    },
+    FISH: {
+        name: 'Fish', health: 5, damage: 0, speed: 2.5, hostile: false, color: 0xffaa00,
+        size: 0.3, xpDrop: 2, lootChance: 0.1, waterOnly: true,
+        buildMesh: () => {
+            const group = new THREE.Group();
+            // Body
+            const body = createBodyPart(new THREE.BoxGeometry(0.1, 0.2, 0.3), 0xffaa00);
+            body.position.y = 0.2;
+            group.add(body);
+            // Tail
+            const tailGeo = new THREE.BoxGeometry(0.02, 0.15, 0.15);
+            const tail = createBodyPart(tailGeo, 0xff8800);
+            tail.position.set(0, 0.2, -0.2);
+            tail.name = 'tail';
+            group.add(tail);
+            // Fins
+            const finGeo = new THREE.BoxGeometry(0.15, 0.02, 0.1);
+            const lf = createBodyPart(finGeo, 0xff8800);
+            lf.position.set(-0.08, 0.15, 0);
+            lf.rotation.z = -0.2;
+            lf.name = 'leftFin';
+            group.add(lf);
+            const rf = createBodyPart(finGeo, 0xff8800);
+            rf.position.set(0.08, 0.15, 0);
+            rf.rotation.z = 0.2;
+            rf.name = 'rightFin';
+            group.add(rf);
+            // Eyes
+            const eyeGeo = new THREE.BoxGeometry(0.02, 0.04, 0.04);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const le = new THREE.Mesh(eyeGeo, eyeMat);
+            le.position.set(-0.051, 0.22, 0.1);
+            group.add(le);
+            const re = new THREE.Mesh(eyeGeo, eyeMat);
+            re.position.set(0.051, 0.22, 0.1);
+            group.add(re);
+            return group;
+        },
+        animate: (mesh, dt, age, isMoving) => {
+            const speed = isMoving ? 20 : 5;
+            const tail = mesh.getObjectByName('tail');
+            if (tail) tail.rotation.y = Math.sin(age * speed) * 0.4;
+            const lf = mesh.getObjectByName('leftFin');
+            const rf = mesh.getObjectByName('rightFin');
+            if (lf) lf.rotation.x = Math.sin(age * speed) * 0.2;
+            if (rf) rf.rotation.x = Math.sin(age * speed) * 0.2;
+        }
+    },
+    BIRD: {
+        name: 'Bird', health: 5, damage: 0, speed: 4, hostile: false, color: 0x33aaee,
+        size: 0.3, xpDrop: 2, lootChance: 0.1, flying: true,
+        buildMesh: () => {
+            const group = new THREE.Group();
+            // Body
+            const body = createBodyPart(new THREE.BoxGeometry(0.15, 0.15, 0.25), 0x33aaee);
+            body.position.y = 0.2;
+            group.add(body);
+            // Head
+            const head = createBodyPart(new THREE.BoxGeometry(0.12, 0.12, 0.12), 0x33aaee);
+            head.position.set(0, 0.25, 0.15);
+            group.add(head);
+            // Beak
+            const beak = createBodyPart(new THREE.ConeGeometry(0.03, 0.1, 4), 0xffcc00);
+            beak.rotation.x = Math.PI / 2;
+            beak.position.set(0, 0.25, 0.25);
+            group.add(beak);
+            // Wings
+            const wingGeo = new THREE.BoxGeometry(0.3, 0.02, 0.15);
+            const lw = createBodyPart(wingGeo, 0x2288cc);
+            lw.position.set(-0.2, 0.22, 0);
+            lw.name = 'leftWing';
+            group.add(lw);
+            const rw = createBodyPart(wingGeo, 0x2288cc);
+            rw.position.set(0.2, 0.22, 0);
+            rw.name = 'rightWing';
+            group.add(rw);
+            return group;
+        },
+        animate: (mesh, dt, age, isMoving) => {
+            const flapSpeed = isMoving ? 25 : 5;
+            const flapAmt = isMoving ? 1.0 : 0.2;
+            const lw = mesh.getObjectByName('leftWing');
+            const rw = mesh.getObjectByName('rightWing');
+            if (lw) lw.rotation.z = Math.sin(age * flapSpeed) * flapAmt;
+            if (rw) rw.rotation.z = -Math.sin(age * flapSpeed) * flapAmt;
+            mesh.position.y += Math.sin(age * 4) * 0.005;
+        }
     }
 };
 
@@ -730,6 +849,7 @@ const MOB_SPAWN_WEIGHTS = [
     { type: 'SPIDER', weight: 12 },
     { type: 'BAT', weight: 8 },
     { type: 'WISP', weight: 5 },
+    { type: 'BIRD', weight: 20 },
 ];
 const TOTAL_MOB_WEIGHT = MOB_SPAWN_WEIGHTS.reduce((s, e) => s + e.weight, 0);
 
@@ -746,11 +866,15 @@ function pickRandomMobType() {
 // Mobs & Entities
 // ============================================
 export class ItemEntity {
-    constructor(item, count, position, atlas) {
+    constructor(item, count, position, atlas, velocity = null) {
         this.item = item;
         this.count = count;
         this.position = position.clone();
-        this.velocity = new THREE.Vector3((Math.random()-0.5)*5, 3, (Math.random()-0.5)*5);
+        if (velocity) {
+            this.velocity = velocity.clone();
+        } else {
+            this.velocity = new THREE.Vector3((Math.random()-0.5)*5, 3, (Math.random()-0.5)*5);
+        }
         this.alive = true;
         this.mesh = null;
         this.atlas = atlas;
@@ -896,8 +1020,21 @@ export class Mob {
         if (!this.alive) return;
         this.age += dt;
         
+        let inWater = false;
+        if (this.config.waterOnly) {
+            // Need BLOCKS from some scope, but wait, BLOCKS is not imported here.
+            // Actually, we can check if the block is liquid using getBlockProperties
+            const currentBlock = world.getBlock(Math.floor(this.position.x), Math.floor(this.position.y), Math.floor(this.position.z));
+            inWater = currentBlock === 2 || currentBlock === 16; // WATER=2, SWAMP_WATER=16
+        }
+
         if (!this.flying) {
-            this.velocity.y -= 25 * dt; // gravity
+            if (this.config.waterOnly && inWater) {
+                // Buoyancy/swimming
+                this.velocity.y += (Math.sin(this.age * 3) * 2.0 - this.velocity.y) * dt * 2;
+            } else {
+                this.velocity.y -= 25 * dt; // gravity
+            }
         }
         
         // Decrease tint timer
@@ -1002,7 +1139,7 @@ export class Mob {
                     const aheadY = Math.floor(this.position.y);
                     const aheadZ = Math.floor(this.position.z + this.wanderDir.z);
                     const blockAhead = world.getBlock(aheadX, aheadY, aheadZ);
-                    if (world.getBlockProperties(blockAhead).solid) {
+                    if (getBlockProperties(blockAhead).solid) {
                         this.velocity.y = 6;
                         this.grounded = false;
                     }
@@ -1010,23 +1147,28 @@ export class Mob {
             } else {
                 this.velocity.x *= 0.8;
                 this.velocity.z *= 0.8;
-                if (this.flying) this.velocity.y *= 0.9;
+                if (this.flying || this.config.waterOnly) this.velocity.y *= 0.9;
             }
         }
 
         if (this.attackCooldown > 0) this.attackCooldown -= dt;
 
-        // Collision
-        if (!this.flying) {
-            const velStep = this.velocity.clone().multiplyScalar(dt);
-            const col = world.collide(this.position, velStep, this.size * 0.8, this.size);
-            this.position.copy(col.position);
+        const velStep = this.velocity.clone().multiplyScalar(dt);
+        const col = world.collide(this.position, velStep, this.size * 0.8, this.size);
+        this.position.copy(col.position);
+        
+        if (col.velocity.x === 0) this.velocity.x = 0;
+        if (col.velocity.z === 0) this.velocity.z = 0;
+        if (col.velocity.y === 0) this.velocity.y = 0;
+
+        if (!this.flying && !this.config.waterOnly) {
             this.grounded = col.grounded;
-            if (col.velocity.x === 0) this.velocity.x = 0;
-            if (col.velocity.z === 0) this.velocity.z = 0;
-            if (col.velocity.y === 0) this.velocity.y = 0;
         } else {
-            this.position.add(this.velocity.clone().multiplyScalar(dt));
+            // Flying / swimming extra boundary checks
+            if (this.position.y < 0) {
+                this.position.y = 0;
+                this.velocity.y *= -0.5;
+            }
         }
         
         if (this.mesh) {
@@ -1138,8 +1280,8 @@ export class EntityManager {
         this.scene.add(mob.getMesh());
     }
 
-    spawnItem(item, count, position) {
-        const iEntity = new ItemEntity(item, count, position, this.atlas);
+    spawnItem(item, count, position, velocity = null) {
+        const iEntity = new ItemEntity(item, count, position, this.atlas, velocity);
         this.items.push(iEntity);
         this.scene.add(iEntity.getMesh());
     }
@@ -1158,10 +1300,18 @@ export class EntityManager {
                 // Find surface
                 for (let y = 127; y > 0; y--) {
                     const b = world.getBlock(sx, y, sz);
-                    if (b !== BLOCKS.AIR && b !== BLOCKS.WATER && b !== BLOCKS.LAVA) {
-                        const type = pickRandomMobType();
+                    if (b !== BLOCKS.AIR && b !== BLOCKS.LAVA) {
+                        let type;
+                        if (b === BLOCKS.WATER || b === BLOCKS.SWAMP_WATER) {
+                            type = 'FISH';
+                        } else {
+                            type = pickRandomMobType();
+                        }
                         const config = MOB_TYPES[type];
-                        const spawnY = config.flying ? y + 5 + Math.random() * 10 : y + 2;
+                        let spawnY = y + 2;
+                        if (config.flying) spawnY = y + 5 + Math.random() * 10;
+                        if (config.waterOnly) spawnY = y - 1 - Math.random() * 3;
+                        
                         const mob = new Mob(type, new THREE.Vector3(sx, spawnY, sz));
                         this.addMob(mob);
                         break;

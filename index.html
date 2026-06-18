@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voxel Odyssey — Infinite Worlds</title>
+    <title>CrapCraft</title>
     <meta name="description" content="Explore infinite procedurally generated planets with dungeons, magic wands, and epic bossfights.">
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=2">
     <link rel="stylesheet" href="css/geometric.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧱</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💩</text></svg>">
 </head>
 <body>
     <canvas id="game-canvas"></canvas>
@@ -16,11 +16,10 @@
     <!-- Start Screen -->
     <div id="start-screen">
         <div class="start-content">
-            <h1 class="game-title">
-                <span class="title-voxel">VOXEL</span>
-                <span class="title-voxel" style="color:var(--text); margin-left:10px;">ODYSSEY</span>
+            <h1 class="game-title" style="font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', sans-serif; font-size: 6rem; text-transform: none; text-shadow: 4px 4px 0 #5c3a21; letter-spacing: -2px; transform: rotate(-3deg);">
+                <span style="color: #8b5a2b;">Crap</span><span style="color: #4da64d;">Craft</span>
             </h1>
-            <p class="subtitle">Infinite Worlds · Dungeons · Magic</p>
+            <p class="subtitle" style="font-family: 'Comic Sans MS'; color: #aa8866; font-size: 1.5rem; margin-top: -10px;">It's literally dirt. Enjoy.</p>
             <div class="start-actions">
                 <button id="btn-new-game" class="menu-btn primary">New Game</button>
             </div>
@@ -43,6 +42,29 @@
         </div>
     </div>
 
+    <!-- Debug Info (F3 Menu) -->
+    <div id="debug-info" class="hidden" style="position: absolute; top: 10px; left: 10px; color: white; text-shadow: 1px 1px 0 #000; font-family: 'JetBrains Mono', monospace; font-size: 14px; pointer-events: none; z-index: 1000; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px;">
+        <div id="debug-fps">FPS: 0</div>
+        <div id="debug-pos">XYZ: 0, 0, 0</div>
+        <div id="debug-biome">Biome: None</div>
+        <div id="debug-block">Looking at: None</div>
+    </div>
+    <!-- HUD overlay for the game -->
+    <div id="error-overlay" style="display:none; position:absolute; top:10%; left:10%; right:10%; background:rgba(255,0,0,0.8); color:white; padding:20px; z-index:9999; font-family:monospace; border:3px solid white; white-space:pre-wrap;"></div>
+    <script>
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            var el = document.getElementById('error-overlay');
+            el.style.display = 'block';
+            el.innerHTML += "ERROR: " + msg + "\nURL: " + url + "\nLine: " + lineNo + ":" + columnNo + "\n" + (error ? error.stack : "") + "\n\n";
+            return false;
+        };
+        window.addEventListener("unhandledrejection", function(e) {
+            var el = document.getElementById('error-overlay');
+            el.style.display = 'block';
+            el.innerHTML += "UNHANDLED PROMISE REJECTION: " + e.reason + "\n\n";
+        });
+    </script>
+    
     <!-- Geometric UI overlay -->
     <div id="geometric-ui" class="hidden">
         <div class="inv-wrapper">
@@ -100,6 +122,6 @@
         }
     }
     </script>
-    <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/main.js?v=6"></script>
 </body>
 </html>

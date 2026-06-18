@@ -22,7 +22,11 @@ const BIOMES = {
     JUNGLE: { name: 'Jungle', surface: BLOCKS.GRASS, dirt: BLOCKS.DIRT, freq: 0.7, hasTrees: true, jungleFlora: true },
     SAVANNA: { name: 'Savanna', surface: BLOCKS.SAVANNA_GRASS, dirt: BLOCKS.DIRT, freq: 0.8, hasTrees: true, savannaFlora: true },
     MOUNTAINS: { name: 'Mountains', surface: BLOCKS.SNOW, dirt: BLOCKS.STONE, freq: 0.4, hasTrees: true },
-    DEEP_OCEAN: { name: 'Deep Ocean', surface: BLOCKS.SAND, dirt: BLOCKS.STONE, freq: 0.3, hasTrees: false }
+    DEEP_OCEAN: { name: 'Deep Ocean', surface: BLOCKS.SAND, dirt: BLOCKS.STONE, freq: 0.3, hasTrees: false },
+    CHERRY_GROVE: { name: 'Cherry Grove', surface: BLOCKS.GRASS, dirt: BLOCKS.DIRT, freq: 0.7, hasTrees: true, isCherry: true },
+    AUTUMN_FOREST: { name: 'Autumn Forest', surface: BLOCKS.GRASS, dirt: BLOCKS.DIRT, freq: 0.7, hasTrees: true, isAutumn: true },
+    GLOW_FOREST: { name: 'Glow Forest', surface: BLOCKS.ALIEN_GRASS, dirt: BLOCKS.ALIEN_STONE, freq: 0.5, hasTrees: true, isGlow: true },
+    OASIS: { name: 'Oasis', surface: BLOCKS.SAND, dirt: BLOCKS.SAND, freq: 0.2, hasTrees: true, isOasis: true }
 };
 
 export class PlanetParams {
@@ -43,16 +47,23 @@ export class PlanetParams {
         this.fogDensity = 0.003 + (rng() * 0.003);
 
         // Terrain
-        this.terrainScale = 50 + rng() * 150;
-        this.terrainHeight = 10 + rng() * 40;
-        this.baseHeight = 30 + rng() * 20;
-        this.seaLevel = this.baseHeight + (rng() * 10 - 5);
+        // Terrain parameters tweaked for Minecraft-like ruggedness
+        this.terrainScale = 120 + rng() * 100; // Large macro shapes
+        this.terrainHeight = 40 + rng() * 20; // Taller hills and mountains (40-60 range)
+        this.baseHeight = 45 + rng() * 10; // Ensure enough depth for oceans and height for peaks
+        this.seaLevel = this.baseHeight - 8;
         
         // Caves
         this.caveScale = 20 + rng() * 30;
         this.caveThreshold = 0.5 + rng() * 0.2; // Higher = fewer caves
 
         this.dungeonFrequency = 0.02 + rng() * 0.03; // ~2-5% per chunk chance
+
+        this.noise2D = createNoise2D(this.seed);
+        this.noise3D = createNoise3D(this.seed);
+        this.caveNoise = createNoise3D(this.seed + 123);
+        this.tempNoise = createNoise2D(this.seed + 456);
+        this.moistNoise = createNoise2D(this.seed + 789);
     }
 }
 
@@ -60,73 +71,171 @@ export function generatePlanetParams(seed) {
     return new PlanetParams(seed);
 }
 
-function getColumnInfo(wx, wz, params, noise2D, tempNoise, moistNoise) {
-    const colRng = seededRandom(params.seed + wx * 3141 + wz);
-    const temp = (tempNoise(wx * 0.003, wz * 0.003) + 1) / 2;
-    const moist = (moistNoise(wx * 0.003, wz * 0.003) + 1) / 2;
-    
-    const ditherT = (colRng() - 0.5) * 0.1;
-    const ditherM = (colRng() - 0.5) * 0.1;
-    
-    const isHot = (temp + ditherT) > 0.6;
-    const isCold = (temp + ditherT) < 0.4;
-    const isWet = (moist + ditherM) > 0.6;
-    const isDry = (moist + ditherM) < 0.4;
+export function getBiomeParams(wx, wz, params) {
+    const noise2D = params.noise2D;
+    const tempNoise = params.tempNoise;
+    const moistNoise = params.moistNoise;
 
-    let biome = BIOMES.PLAINS; // Default moderate
+    // Domain warp the coordinates slightly to make biome borders wavy/organic
+    const warpX = noise2D(wx * 0.01, wz * 0.01) * 30;
+    const warpZ = noise2D(wz * 0.01, wx * 0.01) * 30;
     
-    // Dynamically map all biomes across the temperature and moisture grid
-    if (isHot) {
-        if (isDry) biome = (colRng() > 0.5) ? BIOMES.DESERT : BIOMES.BADLANDS;
-        else if (isWet) biome = (colRng() > 0.5) ? BIOMES.JUNGLE : BIOMES.SWAMP;
-        else biome = BIOMES.SAVANNA;
-    } else if (isCold) {
-        if (isDry) biome = (colRng() > 0.8) ? BIOMES.VOLCANIC : BIOMES.TUNDRA;
-        else if (isWet) biome = BIOMES.ICE_SPIKES;
-        else biome = BIOMES.MOUNTAINS;
-    } else { // Moderate temp
-        if (isDry) biome = (colRng() > 0.8) ? BIOMES.MUSHROOM : BIOMES.PLAINS;
-        else if (isWet) biome = (colRng() > 0.8) ? BIOMES.DEEP_OCEAN : (colRng() > 0.5 ? BIOMES.ALIEN : BIOMES.CRYSTAL);
-        else biome = BIOMES.FOREST;
-    }
+    // Scaled down frequencies to make biomes larger and more expansive
+    const temp = (tempNoise((wx + warpX) * 0.0005, (wz + warpZ) * 0.0005) + 1) / 2;
+    const moist = (moistNoise((wx + warpX) * 0.0005, (wz + warpZ) * 0.0005) + 1) / 2;
+    const subNoise = (noise2D((wx + warpX) * 0.002, (wz + warpZ) * 0.002) + 1) / 2;
 
-    let hNoise = fbm2D(noise2D, wx / params.terrainScale, wz / params.terrainScale, 4);
-    let heightMultiplier = 1.0;
+    const isHot = temp > 0.6;
+    const isCold = temp < 0.4;
+    const isWet = moist > 0.6;
+    const isDry = moist < 0.4;
+
+    let biome = BIOMES.PLAINS;
+    let heightMult = 1.0;
     let baseOffset = 0;
+    let ridgeWeight = 0;
+    let isTerraced = false;
 
+    if (isHot) {
+        if (isDry) {
+            biome = subNoise > 0.6 ? BIOMES.BADLANDS : BIOMES.DESERT;
+            if (biome === BIOMES.DESERT && temp < 0.65 && moist > 0.35) biome = BIOMES.OASIS; // Rare oasis
+            heightMult = subNoise > 0.6 ? 2.0 : 0.2;
+            isTerraced = biome === BIOMES.BADLANDS;
+        } else if (isWet) {
+            biome = subNoise > 0.5 ? BIOMES.JUNGLE : BIOMES.SWAMP;
+            heightMult = biome === BIOMES.SWAMP ? 0.1 : 1.2;
+            if (biome === BIOMES.SWAMP) baseOffset = -2;
+        } else {
+            biome = BIOMES.SAVANNA;
+            heightMult = 0.8;
+        }
+    } else if (isCold) {
+        if (isDry) {
+            biome = subNoise > 0.8 ? BIOMES.VOLCANIC : BIOMES.TUNDRA;
+            heightMult = subNoise > 0.8 ? 1.4 : 1.0;
+        } else if (isWet) {
+            biome = subNoise > 0.7 ? BIOMES.ICE_SPIKES : BIOMES.MOUNTAINS;
+            heightMult = subNoise > 0.7 ? 1.5 : 3.5;
+        } else {
+            biome = subNoise > 0.6 ? BIOMES.AUTUMN_FOREST : BIOMES.TUNDRA;
+            heightMult = 1.0;
+        }
+    } else {
+        if (isDry) {
+            biome = subNoise > 0.7 ? BIOMES.MUSHROOM : BIOMES.PLAINS;
+            heightMult = subNoise > 0.7 ? 0.8 : 0.6;
+        } else if (isWet) {
+            if (subNoise > 0.8) { biome = BIOMES.DEEP_OCEAN; heightMult = 0.4; baseOffset = -20; }
+            else if (subNoise > 0.6) { biome = BIOMES.ALIEN; heightMult = 1.2; }
+            else if (subNoise > 0.4) { biome = BIOMES.GLOW_FOREST; heightMult = 1.0; }
+            else { biome = BIOMES.CRYSTAL; heightMult = 1.2; }
+        } else {
+            biome = subNoise > 0.8 ? BIOMES.CHERRY_GROVE : BIOMES.FOREST;
+            heightMult = 1.1;
+        }
+    }
+    
     if (biome === BIOMES.VOLCANIC || biome === BIOMES.CRYSTAL) {
-        hNoise += ridgeFbm2D(noise2D, wx / (params.terrainScale * 0.5), wz / (params.terrainScale * 0.5), 4) * 0.5;
+        ridgeWeight = 1.0;
     }
 
-    if (biome === BIOMES.DESERT || biome === BIOMES.PLAINS || biome === BIOMES.SWAMP) {
-        heightMultiplier = 0.3; // Flatter terrain
-    } else if (biome === BIOMES.TUNDRA || biome === BIOMES.FOREST) {
-        heightMultiplier = 0.8;
-    } else if (biome === BIOMES.ICE_SPIKES || biome === BIOMES.BADLANDS) {
-        heightMultiplier = 1.5; // Jagged terrain
-    } else if (biome === BIOMES.MOUNTAINS) {
-        heightMultiplier = 3.0; // Huge peaks
+    return { biome, heightMult, baseOffset, ridgeWeight, isTerraced };
+}
+
+function getInterpolatedBiomeData(wx, wz, params) {
+    const CELL_SIZE = 16;
+    const x0 = Math.floor(wx / CELL_SIZE) * CELL_SIZE;
+    const z0 = Math.floor(wz / CELL_SIZE) * CELL_SIZE;
+    const x1 = x0 + CELL_SIZE;
+    const z1 = z0 + CELL_SIZE;
+    
+    const tx = (wx - x0) / CELL_SIZE;
+    const tz = (wz - z0) / CELL_SIZE;
+    
+    const sx = tx * tx * (3 - 2 * tx);
+    const sz = tz * tz * (3 - 2 * tz);
+
+    const b00 = getBiomeParams(x0, z0, params);
+    const b10 = getBiomeParams(x1, z0, params);
+    const b01 = getBiomeParams(x0, z1, params);
+    const b11 = getBiomeParams(x1, z1, params);
+
+    const heightMult = b00.heightMult * (1 - sx) * (1 - sz) +
+                       b10.heightMult * sx * (1 - sz) +
+                       b01.heightMult * (1 - sx) * sz +
+                       b11.heightMult * sx * sz;
+                       
+    const baseOffset = b00.baseOffset * (1 - sx) * (1 - sz) +
+                       b10.baseOffset * sx * (1 - sz) +
+                       b01.baseOffset * (1 - sx) * sz +
+                       b11.baseOffset * sx * sz;
+                       
+    const ridgeWeight = b00.ridgeWeight * (1 - sx) * (1 - sz) +
+                        b10.ridgeWeight * sx * (1 - sz) +
+                        b01.ridgeWeight * (1 - sx) * sz +
+                        b11.ridgeWeight * sx * sz;
+
+    const terracedWeight = (b00.isTerraced ? 1 : 0) * (1 - sx) * (1 - sz) +
+                           (b10.isTerraced ? 1 : 0) * sx * (1 - sz) +
+                           (b01.isTerraced ? 1 : 0) * (1 - sx) * sz +
+                           (b11.isTerraced ? 1 : 0) * sx * sz;
+
+    return { heightMult, baseOffset, ridgeWeight, terracedWeight };
+}
+
+function getColumnInfo(wx, wz, params) {
+    const colRng = seededRandom(params.seed + wx * 3141 + wz);
+    
+    const bData = getInterpolatedBiomeData(wx, wz, params);
+    const center = getBiomeParams(wx, wz, params);
+    
+    // Compose multiple octaves of noise for Minecraft-like ruggedness
+    let hNoise = fbm2D(params.noise2D, wx / params.terrainScale, wz / params.terrainScale, 3);
+    
+    // Roughness scalar based on biome height multiplier
+    // Plains (~0.6) -> low roughness. Mountains (~3.5) -> high roughness.
+    let roughness = Math.max(0, Math.min(1, (bData.heightMult - 0.5) / 1.5));
+    
+    // Add a medium-frequency layer to break up smooth rolling hills
+    let detailNoise = fbm2D(params.noise2D, wx / (params.terrainScale * 0.3), wz / (params.terrainScale * 0.3), 2);
+    hNoise += detailNoise * (0.1 + 0.3 * roughness);
+    
+    // Add high-frequency jaggedness (very subtle, gives surface bumpiness)
+    let microNoise = params.noise2D(wx / 15, wz / 15);
+    hNoise += microNoise * (0.01 + 0.04 * roughness);
+
+    // Apply ridge modifiers
+    if (bData.ridgeWeight > 0) {
+        hNoise += ridgeFbm2D(params.noise2D, wx / (params.terrainScale * 0.5), wz / (params.terrainScale * 0.5), 4) * 0.5 * bData.ridgeWeight;
     }
 
-    if (biome === BIOMES.SWAMP) {
-        baseOffset = -5; // Sink swamp closer to sea level
-    } else if (biome === BIOMES.DEEP_OCEAN) {
-        baseOffset = -15; // Deep underwater
+    // Pseudo-erosion: pull valleys down deeper
+    if (hNoise < 0) {
+        hNoise = -(Math.pow(Math.abs(hNoise), 0.8));
+    } else {
+        hNoise = Math.pow(hNoise, 1.1); // push peaks slightly higher
     }
 
-    const surfaceY = Math.floor(params.baseHeight + baseOffset + (hNoise * params.terrainHeight * heightMultiplier));
-    return { biome, surfaceY, colRng };
+    let elevation = (params.baseHeight + bData.baseOffset) + (hNoise * params.terrainHeight * bData.heightMult);
+    
+    // Apply terracing (e.g. for Badlands)
+    if (bData.terracedWeight > 0) {
+        const terraceStep = 6; // Height of each terrace
+        const terracedElevation = Math.floor(elevation / terraceStep) * terraceStep;
+        elevation = elevation * (1 - bData.terracedWeight) + terracedElevation * bData.terracedWeight;
+    }
+
+    let surfaceY = Math.floor(elevation);
+    if (surfaceY < 1) surfaceY = 1;
+    if (surfaceY >= CHUNK_HEIGHT - 1) surfaceY = CHUNK_HEIGHT - 2;
+
+    return { biome: center.biome, surfaceY, colRng, bData };
 }
 
 // Generate the chunk terrain
 export function generateChunkTerrain(cx, cz, params) {
     const blocks = new Uint8Array(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE);
-    
-    const noise2D = createNoise2D(params.seed);
-    const noise3D = createNoise3D(params.seed);
-    const caveNoise = createNoise3D(params.seed + 123);
-    const tempNoise = createNoise2D(params.seed + 456);
-    const moistNoise = createNoise2D(params.seed + 789);
 
     const wxBase = cx * CHUNK_SIZE;
     const wzBase = cz * CHUNK_SIZE;
@@ -139,7 +248,7 @@ export function generateChunkTerrain(cx, cz, params) {
             const wx = wxBase + x;
             const wz = wzBase + z;
             
-            const { biome, surfaceY, colRng } = getColumnInfo(wx, wz, params, noise2D, tempNoise, moistNoise);
+            const { biome, surfaceY, colRng } = getColumnInfo(wx, wz, params);
 
             for (let y = 0; y < CHUNK_HEIGHT; y++) {
                 let type = BLOCKS.AIR;
@@ -150,7 +259,7 @@ export function generateChunkTerrain(cx, cz, params) {
                     type = BLOCKS.STONE;
                     
                     if (y > 5 && y < surfaceY - 5) {
-                        const c = fbm3D(caveNoise, wx / params.caveScale, y / (params.caveScale * 0.8), wz / params.caveScale, 3);
+                        const c = fbm3D(params.caveNoise, wx / params.caveScale, y / (params.caveScale * 0.8), wz / params.caveScale, 3);
                         if (c > params.caveThreshold) type = BLOCKS.AIR;
                     }
                     
@@ -163,7 +272,8 @@ export function generateChunkTerrain(cx, cz, params) {
                 } else if (y <= surfaceY) {
                     type = (y === surfaceY) ? biome.surface : biome.dirt;
                     // Grass shouldn't survive underwater
-                    if (y < params.seaLevel && type === BLOCKS.GRASS) {
+                    const isAnyGrass = type === BLOCKS.GRASS || type === BLOCKS.SWAMP_GRASS || type === BLOCKS.SAVANNA_GRASS || type === BLOCKS.ALIEN_GRASS;
+                    if (y < params.seaLevel && isAnyGrass) {
                         type = (biome === BIOMES.PLAINS || biome === BIOMES.DESERT || biome === BIOMES.SWAMP) ? BLOCKS.SAND : BLOCKS.DIRT;
                     }
                 } else if (y <= params.seaLevel) {
@@ -180,7 +290,7 @@ export function generateChunkTerrain(cx, cz, params) {
         for (let tz = -3; tz <= CHUNK_SIZE + 2; tz++) {
             const wx = wxBase + tx;
             const wz = wzBase + tz;
-            const { biome, surfaceY, colRng } = getColumnInfo(wx, wz, params, noise2D, tempNoise, moistNoise);
+            const { biome, surfaceY, colRng } = getColumnInfo(wx, wz, params);
             
             // Re-roll colRng to match the exact state right after terrain gen if we want strictly same, 
             // but since we do it procedurally per col it's fine. We need to skip the exact number of colRng calls made in terrain loop, 
@@ -211,15 +321,24 @@ export function generateChunkTerrain(cx, cz, params) {
                     safeSetBlock(blocks, tx, surfaceY + 1, tz, BLOCKS.ALIEN_TALL_GRASS);
                 } else if (r < 0.001) {
                     generatePortalStructure(blocks, tx, surfaceY + 1, tz, floraRng);
-                } else if (r < 0.002 && (biome === BIOMES.FOREST || biome === BIOMES.PLAINS || biome === BIOMES.TUNDRA)) {
+                } else if (r < 0.0002 && (biome === BIOMES.FOREST || biome === BIOMES.PLAINS || biome === BIOMES.TUNDRA)) {
                     generateCabin(blocks, tx, surfaceY + 1, tz, floraRng);
                 } else if (biome.name !== 'Desert' && biome.name !== 'Badlands' && biome.name !== 'Volcanic' && biome.name !== 'Ice Spikes' && biome.name !== 'Deep Ocean') {
-                    // Add standard ground flora (Reverted to normal density)
-                    if (r > 0.05 && r < 0.2) {
+                    // Normal grass logic
+                    let r = floraRng();
+                    if (biome === BIOMES.CHERRY_GROVE && r < 0.4) {
+                        safeSetBlock(blocks, tx, surfaceY + 1, tz, BLOCKS.PINK_PETALS);
+                    } else if (biome === BIOMES.AUTUMN_FOREST && r < 0.4) {
+                        safeSetBlock(blocks, tx, surfaceY + 1, tz, BLOCKS.FALLEN_LEAVES);
+                    } else if (biome === BIOMES.GLOW_FOREST && r < 0.1) {
+                        safeSetBlock(blocks, tx, surfaceY + 1, tz, BLOCKS.GLOW_SHROOM);
+                    } else if (biome === BIOMES.OASIS && r < 0.2) {
+                        safeSetBlock(blocks, tx, surfaceY + 1, tz, BLOCKS.OASIS_FERN);
+                    } else if (r < 0.2) {
                         safeSetBlock(blocks, tx, surfaceY + 1, tz, floraRng() > 0.3 ? BLOCKS.TALL_GRASS : BLOCKS.FERN);
                     } else if (r >= 0.2 && r < 0.25) {
                         const fRng = floraRng();
-                        const flowerType = fRng < 0.33 ? BLOCKS.RED_FLOWER : (fRng < 0.66 ? BLOCKS.YELLOW_FLOWER : BLOCKS.BLUE_FLOWER);
+                        const flowerType = fRng < 0.25 ? BLOCKS.RED_FLOWER : (fRng < 0.5 ? BLOCKS.YELLOW_FLOWER : (fRng < 0.75 ? BLOCKS.BLUE_FLOWER : BLOCKS.WHITE_FLOWER));
                         safeSetBlock(blocks, tx, surfaceY + 1, tz, flowerType);
                     }
                 }
@@ -244,8 +363,15 @@ function generateTree(blocks, x, y, z, biome, rng) {
     const isSavanna = biome.savannaFlora;
     const isSwamp = biome.swampFlora;
     
-    let trunkType = isAlien ? BLOCKS.ALIEN_SPORE_STEM : (isSavanna ? BLOCKS.ACACIA_WOOD : BLOCKS.WOOD);
-    let leafType = isAlien ? BLOCKS.ALIEN_SPORE_BLOCK : (isSavanna ? BLOCKS.ACACIA_LEAVES : BLOCKS.LEAVES);
+    let trunkType = BLOCKS.WOOD;
+    let leafType = BLOCKS.LEAVES;
+    
+    if (isAlien) { trunkType = BLOCKS.ALIEN_SPORE_STEM; leafType = BLOCKS.ALIEN_SPORE_BLOCK; }
+    else if (isSavanna) { trunkType = BLOCKS.ACACIA_WOOD; leafType = BLOCKS.ACACIA_LEAVES; }
+    else if (biome.isCherry) { trunkType = BLOCKS.CHERRY_LOG; leafType = BLOCKS.CHERRY_LEAVES; }
+    else if (biome.isAutumn) { trunkType = BLOCKS.AUTUMN_WOOD; leafType = BLOCKS.AUTUMN_LEAVES; }
+    else if (biome.isGlow) { trunkType = BLOCKS.GLOW_STEM; leafType = BLOCKS.GLOW_LEAVES; }
+    else if (biome.isOasis) { trunkType = BLOCKS.PALM_WOOD; leafType = BLOCKS.PALM_LEAVES; }
     
     const isJungle = biome.jungleFlora;
     const height = (isJungle ? 8 : (isSavanna ? 5 : 4)) + Math.floor(rng() * (isJungle ? 6 : 3));
@@ -254,11 +380,28 @@ function generateTree(blocks, x, y, z, biome, rng) {
         safeSetBlock(blocks, x, y + i, z, trunkType);
     }
     
-    // Minecraft-style Oak Tree Canopy
+    if (biome.isOasis) {
+        // Simple Palm Tree top
+        safeSetBlock(blocks, x, y + height, z, leafType, true);
+        for(let d=1; d<=2; d++) {
+            safeSetBlock(blocks, x+d, y + height, z, leafType, true);
+            safeSetBlock(blocks, x-d, y + height, z, leafType, true);
+            safeSetBlock(blocks, x, y + height, z+d, leafType, true);
+            safeSetBlock(blocks, x, y + height, z-d, leafType, true);
+        }
+        safeSetBlock(blocks, x+2, y + height - 1, z, leafType, true);
+        safeSetBlock(blocks, x-2, y + height - 1, z, leafType, true);
+        safeSetBlock(blocks, x, y + height - 1, z+2, leafType, true);
+        safeSetBlock(blocks, x, y + height - 1, z-2, leafType, true);
+        return;
+    }
+    
+    // Minecraft-style Oak Tree Canopy (Organic)
     for (let ly = y + height - 2; ly <= y + height - 1; ly++) {
         for (let lx = x - 2; lx <= x + 2; lx++) {
             for (let lz = z - 2; lz <= z + 2; lz++) {
                 if (Math.abs(lx - x) === 2 && Math.abs(lz - z) === 2) continue;
+                if (rng() < 0.15) continue; // jitter leaves
                 safeSetBlock(blocks, lx, ly, lz, leafType, true);
             }
         }
@@ -267,6 +410,7 @@ function generateTree(blocks, x, y, z, biome, rng) {
         for (let lx = x - 1; lx <= x + 1; lx++) {
             for (let lz = z - 1; lz <= z + 1; lz++) {
                 if (ly === y + height + 1 && Math.abs(lx - x) === 1 && Math.abs(lz - z) === 1) continue;
+                if (ly === y + height + 1 && rng() < 0.3) continue; // thinner top layer
                 safeSetBlock(blocks, lx, ly, lz, leafType, true);
             }
         }
@@ -329,9 +473,7 @@ function generateCactus(blocks, x, y, z, rng) {
 // ============================================
 
 function carveGlobalDungeons(blocks, cx, cz, params) {
-
-    const searchRadius = 6; // Check chunks within 6 chunks distance for dungeon starts
-    
+    const searchRadius = 3; // Reduced from 6 to eliminate huge lag spikes
     for (let sx = cx - searchRadius; sx <= cx + searchRadius; sx++) {
         for (let sz = cz - searchRadius; sz <= cz + searchRadius; sz++) {
             // Determine if a dungeon starts at chunk (sx, sz)
@@ -506,6 +648,11 @@ export function generateCabin(blocks, x, y, z, rng) {
             }
         }
     }
+    
+    // Add interior
+    safeSetBlock(blocks, x - 1, y, z + 1, BLOCKS.COBBLESTONE); // Furnace proxy
+    safeSetBlock(blocks, x + 1, y, z + 1, BLOCKS.PLANKS); // Table
+    safeSetBlock(blocks, x, y + 2, z + 1, BLOCKS.TORCH); // Wall torch
     // Floor
     for (let px = x - 1; px <= x + 1; px++) {
         for (let pz = z - 1; pz <= z + 1; pz++) {

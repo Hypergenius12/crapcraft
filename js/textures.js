@@ -58,7 +58,20 @@ export const BLOCKS = {
     CACTUS: 49,
     BLUE_FLOWER: 50,
     YELLOW_FLOWER: 51,
-    FERN: 52
+    FERN: 52,
+    WHITE_FLOWER: 53,
+    CHERRY_LOG: 54,
+    CHERRY_LEAVES: 55,
+    PINK_PETALS: 56,
+    AUTUMN_WOOD: 57,
+    AUTUMN_LEAVES: 58,
+    FALLEN_LEAVES: 59,
+    GLOW_STEM: 60,
+    GLOW_LEAVES: 61,
+    GLOW_SHROOM: 62,
+    PALM_WOOD: 63,
+    PALM_LEAVES: 64,
+    OASIS_FERN: 65
 };
 
 // Block properties
@@ -115,7 +128,20 @@ const BLOCK_PROPS = {
     [BLOCKS.CACTUS]:        { name: 'Cactus',         health: 2, transparent: false, emissive: 0, solid: true, drops: null },
     [BLOCKS.BLUE_FLOWER]:   { name: 'Blue Flower',    health: 1, transparent: true,  emissive: 0, solid: false, isCross: true, drops: null },
     [BLOCKS.YELLOW_FLOWER]: { name: 'Yellow Flower',  health: 1, transparent: true,  emissive: 0, solid: false, isCross: true, drops: null },
-    [BLOCKS.FERN]:          { name: 'Fern',           health: 1, transparent: true,  emissive: 0, solid: false, isCross: true, drops: null }
+    [BLOCKS.FERN]:          { name: 'Fern',           health: 1, transparent: true,  emissive: 0, solid: false, isCross: true, drops: null },
+    [BLOCKS.WHITE_FLOWER]:  { name: 'White Flower',   health: 1, transparent: true,  emissive: 0, solid: false, isCross: true, drops: null },
+    [BLOCKS.CHERRY_LOG]:    { name: 'Cherry Log',     health: 5, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.CHERRY_LEAVES]: { name: 'Cherry Leaves',  health: 1, transparent: true,  emissive: 0, solid: true, drops: null },
+    [BLOCKS.PINK_PETALS]:   { name: 'Pink Petals',    health: 1, transparent: true,  emissive: 0, solid: false, isCross: true, drops: null },
+    [BLOCKS.AUTUMN_WOOD]:   { name: 'Autumn Wood',    health: 5, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.AUTUMN_LEAVES]: { name: 'Autumn Leaves',  health: 1, transparent: true,  emissive: 0, solid: true, drops: null },
+    [BLOCKS.FALLEN_LEAVES]: { name: 'Fallen Leaves',  health: 1, transparent: true,  emissive: 0, solid: false, isCross: true, drops: null },
+    [BLOCKS.GLOW_STEM]:     { name: 'Glow Stem',      health: 4, transparent: false, emissive: 0.2, solid: true, drops: null },
+    [BLOCKS.GLOW_LEAVES]:   { name: 'Glow Leaves',    health: 1, transparent: true,  emissive: 0.5, solid: true, drops: null },
+    [BLOCKS.GLOW_SHROOM]:   { name: 'Glow Shroom',    health: 1, transparent: true,  emissive: 0.8, solid: false, isCross: true, drops: null },
+    [BLOCKS.PALM_WOOD]:     { name: 'Palm Wood',      health: 5, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.PALM_LEAVES]:   { name: 'Palm Leaves',    health: 1, transparent: true,  emissive: 0, solid: true, drops: null },
+    [BLOCKS.OASIS_FERN]:    { name: 'Oasis Fern',     health: 1, transparent: true,  emissive: 0, solid: false, isCross: true, drops: null }
 };
 
 export function getBlockProperties(type) {
@@ -199,6 +225,16 @@ function drawBricks(ctx, rng, mortarColor, brickVariation = 15) {
     addNoise(ctx, rng, brickVariation);
 }
 
+function addRings(ctx, rng, ringColor, borderColor = 'rgba(60, 45, 25, 0.9)') {
+    ctx.strokeStyle = ringColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(TEX_SIZE/2, TEX_SIZE/2, 3, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(TEX_SIZE/2, TEX_SIZE/2, 6, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, 0, TEX_SIZE, TEX_SIZE);
+}
+
 // Generate texture for a block type
 function generateBlockTexture(ctx, blockType, face, rng) {
     switch (blockType) {
@@ -213,33 +249,26 @@ function generateBlockTexture(ctx, blockType, face, rng) {
                 addNoise(ctx, rng, 20);
                 addPixels(ctx, rng, 'rgba(100, 70, 45, 0.6)', 15);
             } else {
+                // Dirt base
                 fillBase(ctx, 134, 96, 67);
                 addNoise(ctx, rng, 20);
-                const id = ctx.getImageData(0, 0, TEX_SIZE, TEX_SIZE);
-                const d = id.data;
-                for (let y = 0; y < TEX_SIZE; y++) {
-                    for (let x = 0; x < TEX_SIZE; x++) {
-                        let isGrass = false;
-                        if (y < 4) isGrass = true;
-                        else if (y < 8) isGrass = (rng() > (y - 3) / 4);
-                        if (isGrass) {
-                            const i = (y * TEX_SIZE + x) * 4;
-                            const v = ((rng() - 0.5) * 20) | 0;
-                            d[i] = Math.max(0, Math.min(255, 114 + v));
-                            d[i+1] = Math.max(0, Math.min(255, 161 + v));
-                            d[i+2] = Math.max(0, Math.min(255, 69 + v));
-                        } else if (y > 3 && y < 9) {
-                            const aboveI = ((y - 1) * TEX_SIZE + x) * 4;
-                            if (d[aboveI+1] > 120 && d[aboveI] < 125) {
-                                const i = (y * TEX_SIZE + x) * 4;
-                                d[i] = Math.max(0, d[i] - 30);
-                                d[i+1] = Math.max(0, d[i+1] - 30);
-                                d[i+2] = Math.max(0, d[i+2] - 30);
-                            }
-                        }
-                    }
+                addPixels(ctx, rng, 'rgba(100, 70, 45, 0.7)', 30);
+                
+                // Grass top overlay
+                ctx.fillStyle = '#72a145'; // Base grass color
+                for (let x = 0; x < TEX_SIZE; x++) {
+                    // Random grass depth per column (3 to 5 pixels)
+                    const depth = 3 + Math.floor(rng() * 3);
+                    ctx.fillRect(x, 0, 1, depth);
                 }
-                ctx.putImageData(id, 0, 0);
+                
+                // Add noise/details to the grass part
+                ctx.fillStyle = 'rgba(90, 130, 50, 0.8)';
+                for (let i = 0; i < 15; i++) {
+                    const px = Math.floor(rng() * TEX_SIZE);
+                    const py = Math.floor(rng() * 4);
+                    ctx.fillRect(px, py, 1, 1);
+                }
             }
             break;
         case BLOCKS.DIRT:
@@ -268,57 +297,49 @@ function generateBlockTexture(ctx, blockType, face, rng) {
             break;
         case BLOCKS.WOOD:
             if (face === 'top' || face === 'bottom') {
-                fillBase(ctx, 160, 130, 80);
+                fillBase(ctx, 160, 130, 80); // Lighter inner wood
                 addNoise(ctx, rng, 15);
-                const id = ctx.getImageData(0, 0, TEX_SIZE, TEX_SIZE);
-                const d = id.data;
-                for (let y = 0; y < TEX_SIZE; y++) {
-                    for (let x = 0; x < TEX_SIZE; x++) {
-                        const dx = x - 7.5;
-                        const dy = y - 7.5;
-                        const dist = Math.sqrt(dx*dx + dy*dy);
-                        const i = (y * TEX_SIZE + x) * 4;
-                        if (dist > 7) {
-                            d[i] = 70; d[i+1] = 50; d[i+2] = 30;
-                        } else {
-                            if (Math.abs(Math.sin(dist * 1.5)) > 0.7) {
-                                d[i] = Math.max(0, d[i] - 30);
-                                d[i+1] = Math.max(0, d[i+1] - 30);
-                                d[i+2] = Math.max(0, d[i+2] - 20);
-                            }
-                        }
-                    }
-                }
-                ctx.putImageData(id, 0, 0);
+                // Draw rings
+                ctx.strokeStyle = 'rgba(120, 90, 50, 0.8)';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.arc(8, 8, 3, 0, Math.PI*2); ctx.stroke();
+                ctx.beginPath(); ctx.arc(8, 8, 6, 0, Math.PI*2); ctx.stroke();
+                // Draw bark border
+                ctx.strokeStyle = 'rgba(60, 45, 25, 0.9)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(0, 0, TEX_SIZE, TEX_SIZE);
             } else {
-                fillBase(ctx, 70, 50, 30);
+                fillBase(ctx, 80, 60, 35); // Darker brown bark base
                 addNoise(ctx, rng, 10);
-                ctx.fillStyle = 'rgba(40, 25, 15, 0.7)';
-                for (let i = 0; i < 25; i++) {
-                    const x = (rng() * TEX_SIZE) | 0;
-                    const y = (rng() * TEX_SIZE) | 0;
-                    const h = 4 + (rng() * 8) | 0;
-                    ctx.fillRect(x, y, 1, h);
+                // Vertical bark stripes
+                ctx.fillStyle = 'rgba(40, 25, 15, 0.8)'; // Dark crevices
+                for (let x = 0; x < TEX_SIZE; x += 2 + (rng()*2)|0) {
+                    ctx.fillRect(x, 0, 1, TEX_SIZE);
                 }
-                ctx.fillStyle = 'rgba(100, 75, 45, 0.6)';
-                for (let i = 0; i < 20; i++) {
+                ctx.fillStyle = 'rgba(100, 75, 45, 0.7)'; // Lighter ridges
+                for (let x = 1; x < TEX_SIZE; x += 3 + (rng()*2)|0) {
+                    ctx.fillRect(x, 0, 1, TEX_SIZE);
+                }
+                // Break up stripes slightly
+                ctx.fillStyle = 'rgba(60, 40, 20, 0.5)';
+                for (let i = 0; i < 30; i++) {
                     const x = (rng() * TEX_SIZE) | 0;
                     const y = (rng() * TEX_SIZE) | 0;
-                    const h = 3 + (rng() * 6) | 0;
-                    ctx.fillRect(x, y, 1, h);
+                    ctx.fillRect(x, y, 2, 2);
                 }
             }
             break;
         case BLOCKS.LEAVES:
             ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
             fillBase(ctx, 40, 100, 30);
-            addNoise(ctx, rng, 20);
-            for (let i = 0; i < 45; i++) {
+            addNoise(ctx, rng, 30);
+            // Large clear rects for transparency
+            for (let i = 0; i < 70; i++) {
                 const x = (rng() * TEX_SIZE) | 0;
                 const y = (rng() * TEX_SIZE) | 0;
-                ctx.clearRect(x, y, 1 + (rng() * 2)|0, 1 + (rng() * 2)|0);
+                ctx.clearRect(x, y, 2, 2);
             }
-            ctx.fillStyle = 'rgba(70, 140, 50, 0.8)';
+            ctx.fillStyle = 'rgba(70, 140, 50, 0.9)';
             for (let i = 0; i < 40; i++) {
                 ctx.fillRect((rng() * TEX_SIZE) | 0, (rng() * TEX_SIZE) | 0, 1, 1);
             }
@@ -346,17 +367,24 @@ function generateBlockTexture(ctx, blockType, face, rng) {
         case BLOCKS.COBBLESTONE:
             fillBase(ctx, 100, 100, 100);
             addNoise(ctx, rng, 15);
+            // Draw stone borders
+            ctx.fillStyle = 'rgba(50, 50, 50, 0.9)';
             for (let y = 0; y < TEX_SIZE; y++) {
                 for (let x = 0; x < TEX_SIZE; x++) {
-                    const val = Math.sin(x * 0.8 + Math.cos(y * 0.8)) + Math.cos(y * 0.8);
-                    if (val < -0.1) {
-                        ctx.fillStyle = 'rgba(50, 50, 50, 0.9)';
+                    const cx = (x + (y % 6 > 2 ? 3 : 0)) % 5;
+                    const cy = y % 4;
+                    if (cx === 0 || cy === 0 || (rng() < 0.05)) {
                         ctx.fillRect(x, y, 1, 1);
-                    } else if (val > 1.1) {
-                        ctx.fillStyle = 'rgba(150, 150, 150, 0.6)';
-                        ctx.fillRect(x, y, 1, 1);
-                    } else if (val < 0.2 && rng() > 0.5) {
-                        ctx.fillStyle = 'rgba(70, 70, 70, 0.8)';
+                    }
+                }
+            }
+            // Add highlights
+            ctx.fillStyle = 'rgba(150, 150, 150, 0.5)';
+            for (let y = 0; y < TEX_SIZE; y++) {
+                for (let x = 0; x < TEX_SIZE; x++) {
+                    const cx = (x + (y % 6 > 2 ? 3 : 0)) % 5;
+                    const cy = y % 4;
+                    if (cx === 1 && cy === 1 && rng() < 0.8) {
                         ctx.fillRect(x, y, 1, 1);
                     }
                 }
@@ -566,12 +594,36 @@ function generateBlockTexture(ctx, blockType, face, rng) {
                 addNoise(ctx, rng, 20);
             } else {
                 fillBase(ctx, 100, 65, 45);
-                addNoise(ctx, rng, 15);
-                ctx.fillStyle = 'rgba(160,150,60,0.9)';
-                for (let x = 0; x < TEX_SIZE; x++) {
-                    const h = 4 + (rng() * 4) | 0;
-                    ctx.fillRect(x, 0, 1, h);
+                addNoise(ctx, rng, 20);
+                const id = ctx.getImageData(0, 0, TEX_SIZE, TEX_SIZE);
+                const d = id.data;
+                const blades = [];
+                for (let x = 0; x < TEX_SIZE; x++) blades.push(3 + (rng() * 6) | 0);
+                for (let y = 0; y < TEX_SIZE; y++) {
+                    for (let x = 0; x < TEX_SIZE; x++) {
+                        let isGrass = false;
+                        if (y < blades[x]) {
+                            isGrass = true;
+                            if (y > 3 && rng() > 0.8) isGrass = false;
+                        }
+                        if (isGrass) {
+                            const i = (y * TEX_SIZE + x) * 4;
+                            const v = ((rng() - 0.5) * 30) | 0;
+                            d[i] = Math.max(0, Math.min(255, 160 + v));
+                            d[i+1] = Math.max(0, Math.min(255, 150 + v));
+                            d[i+2] = Math.max(0, Math.min(255, 60 + v));
+                        } else if (y > 0) {
+                            const aboveI = ((y - 1) * TEX_SIZE + x) * 4;
+                            if (d[aboveI+1] > 120 && d[aboveI] < 170) {
+                                const i = (y * TEX_SIZE + x) * 4;
+                                d[i] = Math.max(0, d[i] - 40);
+                                d[i+1] = Math.max(0, d[i+1] - 40);
+                                d[i+2] = Math.max(0, d[i+2] - 40);
+                            }
+                        }
+                    }
                 }
+                ctx.putImageData(id, 0, 0);
             }
             break;
         case BLOCKS.ACACIA_WOOD:
@@ -591,8 +643,16 @@ function generateBlockTexture(ctx, blockType, face, rng) {
         case BLOCKS.ACACIA_LEAVES:
             ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
             fillBase(ctx, 90, 130, 40); // Olive green
-            addNoise(ctx, rng, 15);
-            addPixels(ctx, rng, 'rgba(0,0,0,0)', 50); // transparent holes
+            addNoise(ctx, rng, 30);
+            for (let i = 0; i < 70; i++) {
+                const x = (rng() * TEX_SIZE) | 0;
+                const y = (rng() * TEX_SIZE) | 0;
+                ctx.clearRect(x, y, 2, 2);
+            }
+            ctx.fillStyle = 'rgba(110, 150, 50, 0.9)';
+            for (let i = 0; i < 40; i++) {
+                ctx.fillRect((rng() * TEX_SIZE) | 0, (rng() * TEX_SIZE) | 0, 1, 1);
+            }
             break;
         case BLOCKS.MUD:
             fillBase(ctx, 70, 50, 40);
@@ -608,12 +668,36 @@ function generateBlockTexture(ctx, blockType, face, rng) {
                 addNoise(ctx, rng, 10);
             } else {
                 fillBase(ctx, 70, 50, 40);
-                addNoise(ctx, rng, 10);
-                ctx.fillStyle = 'rgba(70,90,40,0.9)';
-                for (let x = 0; x < TEX_SIZE; x++) {
-                    const h = 4 + (rng() * 4) | 0;
-                    ctx.fillRect(x, 0, 1, h);
+                addNoise(ctx, rng, 20);
+                const id = ctx.getImageData(0, 0, TEX_SIZE, TEX_SIZE);
+                const d = id.data;
+                const blades = [];
+                for (let x = 0; x < TEX_SIZE; x++) blades.push(3 + (rng() * 6) | 0);
+                for (let y = 0; y < TEX_SIZE; y++) {
+                    for (let x = 0; x < TEX_SIZE; x++) {
+                        let isGrass = false;
+                        if (y < blades[x]) {
+                            isGrass = true;
+                            if (y > 3 && rng() > 0.8) isGrass = false;
+                        }
+                        if (isGrass) {
+                            const i = (y * TEX_SIZE + x) * 4;
+                            const v = ((rng() - 0.5) * 30) | 0;
+                            d[i] = Math.max(0, Math.min(255, 70 + v));
+                            d[i+1] = Math.max(0, Math.min(255, 90 + v));
+                            d[i+2] = Math.max(0, Math.min(255, 40 + v));
+                        } else if (y > 0) {
+                            const aboveI = ((y - 1) * TEX_SIZE + x) * 4;
+                            if (d[aboveI+1] > 75 && d[aboveI] < 100) { 
+                                const i = (y * TEX_SIZE + x) * 4;
+                                d[i] = Math.max(0, d[i] - 30);
+                                d[i+1] = Math.max(0, d[i+1] - 30);
+                                d[i+2] = Math.max(0, d[i+2] - 30);
+                            }
+                        }
+                    }
                 }
+                ctx.putImageData(id, 0, 0);
             }
             break;
         case BLOCKS.SWAMP_WATER:
@@ -643,46 +727,190 @@ function generateBlockTexture(ctx, blockType, face, rng) {
             break;
         case BLOCKS.TALL_GRASS:
             ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
-            ctx.strokeStyle = 'rgba(60, 160, 45, 0.9)';
-            ctx.lineWidth = 1.5;
-            for (let i = 0; i < 8; i++) {
-                const x = 2 + (rng() * 12) | 0;
-                const h = 6 + (rng() * 8) | 0;
-                const curveDir = rng() > 0.5 ? 2 : -2;
-                ctx.beginPath();
-                ctx.moveTo(x, TEX_SIZE);
-                ctx.quadraticCurveTo(x + curveDir/2, TEX_SIZE - h/2, x + curveDir, TEX_SIZE - h);
-                ctx.stroke();
-            }
+            ctx.fillStyle = '#3ca02d'; // Mid green
+            // Blade 1
+            ctx.fillRect(4, 15, 1, 1); ctx.fillRect(4, 14, 1, 1);
+            ctx.fillRect(3, 13, 1, 1); ctx.fillRect(3, 12, 1, 1);
+            ctx.fillRect(2, 11, 1, 1);
+            // Blade 2
+            ctx.fillRect(7, 15, 2, 1); ctx.fillRect(7, 13, 1, 2);
+            ctx.fillRect(8, 10, 1, 3); ctx.fillRect(9, 7, 1, 3);
+            // Blade 3
+            ctx.fillRect(11, 15, 1, 1); ctx.fillRect(11, 14, 1, 1);
+            ctx.fillRect(12, 13, 1, 1); ctx.fillRect(12, 12, 1, 1);
+            ctx.fillRect(13, 11, 1, 1);
+            // Highlights
+            ctx.fillStyle = '#55c044';
+            ctx.fillRect(8, 11, 1, 1); ctx.fillRect(8, 14, 1, 1);
+            ctx.fillRect(3, 12, 1, 1); ctx.fillRect(12, 12, 1, 1);
+            // Shadows
+            ctx.fillStyle = '#2e8020';
+            ctx.fillRect(7, 14, 1, 2); ctx.fillRect(8, 15, 1, 1);
+            ctx.fillRect(4, 15, 1, 1); ctx.fillRect(11, 15, 1, 1);
             break;
         case BLOCKS.RED_FLOWER:
         case BLOCKS.BLUE_FLOWER:
         case BLOCKS.YELLOW_FLOWER:
+        case BLOCKS.WHITE_FLOWER:
             ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
-            ctx.fillStyle = 'rgba(60, 160, 45, 0.9)';
-            ctx.fillRect(7, 8, 2, 8); // stem
-            ctx.fillStyle = blockType === BLOCKS.RED_FLOWER ? '#ff3333' : 
-                            (blockType === BLOCKS.BLUE_FLOWER ? '#3333ff' : '#ffff33');
-            ctx.beginPath();
-            ctx.arc(8, 6, 4, 0, Math.PI*2);
-            ctx.fill();
+            ctx.fillStyle = '#3ca02d'; // Stem
+            ctx.fillRect(7, 9, 2, 7);
+            ctx.fillRect(6, 12, 1, 1);
+            ctx.fillRect(9, 13, 1, 1);
+            // Flower head
+            if (blockType === BLOCKS.RED_FLOWER) ctx.fillStyle = '#ff2222';
+            if (blockType === BLOCKS.BLUE_FLOWER) ctx.fillStyle = '#2266ff';
+            if (blockType === BLOCKS.YELLOW_FLOWER) ctx.fillStyle = '#ffee22';
+            if (blockType === BLOCKS.WHITE_FLOWER) ctx.fillStyle = '#ffffff';
+            ctx.fillRect(6, 5, 4, 4);
+            ctx.fillRect(7, 4, 2, 1);
+            ctx.fillRect(5, 6, 1, 2);
+            ctx.fillRect(10, 6, 1, 2);
+            if (blockType === BLOCKS.WHITE_FLOWER) ctx.fillStyle = '#eeeeee';
+            else ctx.fillStyle = '#ddaa00'; // center
+            ctx.fillRect(7, 6, 2, 2);
             break;
         case BLOCKS.FERN:
             ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
-            ctx.strokeStyle = 'rgba(50, 140, 40, 0.9)';
-            ctx.lineWidth = 1.5;
-            for (let i = 0; i < 4; i++) {
-                ctx.beginPath();
-                ctx.moveTo(8, TEX_SIZE);
-                ctx.quadraticCurveTo(8 + (i%2===0?-5:5), TEX_SIZE - 4 - i*2, 8 + (i%2===0?-8:8), TEX_SIZE - 8 - i*2);
-                ctx.stroke();
-            }
+            ctx.fillStyle = '#3ca02d'; // Base green
+            // Central stem
+            ctx.fillRect(7, 8, 2, 8);
+            // Fronds left
+            ctx.fillRect(5, 10, 2, 1);
+            ctx.fillRect(3, 9, 2, 1);
+            ctx.fillRect(5, 13, 2, 1);
+            ctx.fillRect(4, 12, 1, 1);
+            // Fronds right
+            ctx.fillRect(9, 11, 2, 1);
+            ctx.fillRect(11, 10, 2, 1);
+            ctx.fillRect(9, 14, 2, 1);
+            ctx.fillRect(11, 13, 1, 1);
+            // Highlight
+            ctx.fillStyle = '#55c044';
+            ctx.fillRect(7, 8, 1, 8); // Stem highlight
+            ctx.fillRect(6, 10, 1, 1);
+            ctx.fillRect(4, 9, 1, 1);
+            ctx.fillRect(10, 11, 1, 1);
+            ctx.fillRect(12, 10, 1, 1);
+            // Shadows
+            ctx.fillStyle = '#2e8020';
+            ctx.fillRect(8, 10, 1, 6); // Inner stem shadow
+            ctx.fillRect(5, 14, 2, 1); ctx.fillRect(9, 15, 2, 1);
             break;
         case BLOCKS.CACTUS:
             fillBase(ctx, 40, 120, 40);
             addNoise(ctx, rng, 15);
             addStripes(ctx, rng, 'rgba(20, 80, 20, 0.6)', 'v', 4);
             addPixels(ctx, rng, 'rgba(0, 0, 0, 0.8)', 20); // Spikes
+            break;
+        case BLOCKS.CHERRY_LOG:
+            if (face === 'top' || face === 'bottom') {
+                fillBase(ctx, 220, 180, 190);
+                addRings(ctx, rng, 'rgba(200, 150, 160, 0.8)');
+            } else {
+                fillBase(ctx, 60, 40, 40);
+                addNoise(ctx, rng, 10);
+                addStripes(ctx, rng, 'rgba(40, 25, 25, 0.5)', 'v', 3);
+            }
+            break;
+        case BLOCKS.CHERRY_LEAVES:
+            fillBase(ctx, 255, 180, 200);
+            addNoise(ctx, rng, 20);
+            addPixels(ctx, rng, 'rgba(255, 140, 180, 0.8)', 40); // darker pink leaves
+            ctx.clearRect(rng() * 10, rng() * 10, 3, 3); // some transparency
+            ctx.clearRect(rng() * 10, rng() * 10, 2, 2);
+            break;
+        case BLOCKS.PINK_PETALS:
+            ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
+            ctx.fillStyle = '#ffb3cc';
+            ctx.fillRect(4, 14, 2, 1);
+            ctx.fillRect(9, 15, 3, 1);
+            ctx.fillRect(11, 13, 2, 1);
+            ctx.fillRect(2, 12, 2, 1);
+            ctx.fillStyle = '#ff80aa';
+            ctx.fillRect(5, 14, 1, 1);
+            ctx.fillRect(10, 15, 1, 1);
+            break;
+        case BLOCKS.AUTUMN_WOOD:
+            if (face === 'top' || face === 'bottom') {
+                fillBase(ctx, 160, 130, 90);
+                addRings(ctx, rng, 'rgba(120, 90, 60, 0.8)');
+            } else {
+                fillBase(ctx, 100, 70, 40);
+                addNoise(ctx, rng, 15);
+                addStripes(ctx, rng, 'rgba(60, 40, 20, 0.6)', 'v', 4);
+            }
+            break;
+        case BLOCKS.AUTUMN_LEAVES:
+            fillBase(ctx, 220, 100, 20);
+            addNoise(ctx, rng, 20);
+            addPixels(ctx, rng, 'rgba(255, 150, 20, 0.8)', 40); // Yellow/orange leaves
+            ctx.clearRect(rng() * 10, rng() * 10, 3, 3);
+            ctx.clearRect(rng() * 10, rng() * 10, 2, 2);
+            break;
+        case BLOCKS.FALLEN_LEAVES:
+            ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
+            ctx.fillStyle = '#dd6611';
+            ctx.fillRect(3, 14, 2, 1);
+            ctx.fillRect(10, 15, 2, 1);
+            ctx.fillRect(7, 13, 3, 1);
+            ctx.fillStyle = '#ff9900';
+            ctx.fillRect(4, 14, 1, 1);
+            ctx.fillRect(11, 15, 1, 1);
+            ctx.fillRect(8, 13, 1, 1);
+            break;
+        case BLOCKS.GLOW_STEM:
+            fillBase(ctx, 20, 60, 60);
+            addNoise(ctx, rng, 10);
+            addStripes(ctx, rng, 'rgba(10, 200, 200, 0.4)', 'v', 5); // glowing lines
+            break;
+        case BLOCKS.GLOW_LEAVES:
+            fillBase(ctx, 10, 120, 120);
+            addNoise(ctx, rng, 15);
+            addPixels(ctx, rng, 'rgba(0, 255, 255, 0.8)', 50); // glowing spots
+            ctx.clearRect(rng() * 10, rng() * 10, 3, 3);
+            break;
+        case BLOCKS.GLOW_SHROOM:
+            ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
+            ctx.fillStyle = '#118888'; // Stem
+            ctx.fillRect(7, 8, 2, 8);
+            ctx.fillStyle = '#00ffff'; // Glowing cap
+            ctx.fillRect(5, 5, 6, 3);
+            ctx.fillRect(4, 6, 8, 2);
+            ctx.fillStyle = '#aaffff'; // Highlights
+            ctx.fillRect(6, 5, 2, 1);
+            break;
+        case BLOCKS.PALM_WOOD:
+            if (face === 'top' || face === 'bottom') {
+                fillBase(ctx, 200, 170, 130);
+                addRings(ctx, rng, 'rgba(160, 130, 90, 0.8)');
+            } else {
+                fillBase(ctx, 150, 120, 80);
+                addNoise(ctx, rng, 15);
+                addStripes(ctx, rng, 'rgba(100, 80, 50, 0.6)', 'h', 6); // Palm trees have horizontal lines
+            }
+            break;
+        case BLOCKS.PALM_LEAVES:
+            fillBase(ctx, 80, 180, 60);
+            addNoise(ctx, rng, 20);
+            addPixels(ctx, rng, 'rgba(40, 120, 20, 0.8)', 30);
+            ctx.clearRect(rng() * 10, rng() * 10, 3, 3);
+            ctx.clearRect(rng() * 10, rng() * 10, 4, 2);
+            break;
+        case BLOCKS.OASIS_FERN:
+            ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
+            ctx.fillStyle = '#22cc44'; // Bright oasis green
+            ctx.fillRect(7, 6, 2, 10); // Central stem
+            ctx.fillRect(5, 8, 2, 1); // Large fronds
+            ctx.fillRect(9, 8, 2, 1);
+            ctx.fillRect(4, 11, 3, 1);
+            ctx.fillRect(9, 11, 3, 1);
+            ctx.fillRect(3, 14, 4, 1);
+            ctx.fillRect(9, 14, 4, 1);
+            ctx.fillStyle = '#66ff88'; // Highlight
+            ctx.fillRect(7, 6, 1, 10);
+            ctx.fillRect(6, 8, 1, 1);
+            ctx.fillRect(5, 11, 1, 1);
             break;
         default:
             fillBase(ctx, 255, 0, 255);
@@ -692,7 +920,7 @@ function generateBlockTexture(ctx, blockType, face, rng) {
 
 function hasFaceVariants(blockType) {
     return [
-        BLOCKS.GRASS, BLOCKS.WOOD, BLOCKS.MUSHROOM_STEM, BLOCKS.SAVANNA_GRASS, BLOCKS.ACACIA_WOOD, BLOCKS.SWAMP_GRASS, BLOCKS.ALIEN_GRASS, BLOCKS.PORTAL_FRAME
+        BLOCKS.GRASS, BLOCKS.WOOD, BLOCKS.MUSHROOM_STEM, BLOCKS.SAVANNA_GRASS, BLOCKS.ACACIA_WOOD, BLOCKS.SWAMP_GRASS, BLOCKS.ALIEN_GRASS, BLOCKS.PORTAL_FRAME, BLOCKS.CHERRY_LOG, BLOCKS.AUTUMN_WOOD, BLOCKS.PALM_WOOD
     ].includes(blockType);
 }
 

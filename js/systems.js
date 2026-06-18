@@ -18,14 +18,14 @@ export class LightingSystem {
         this.sunLight.shadow.mapSize.width = 2048;
         this.sunLight.shadow.mapSize.height = 2048;
         this.sunLight.shadow.camera.near = 0.5;
-        this.sunLight.shadow.camera.far = 100;
-        const d = 40;
+        this.sunLight.shadow.camera.far = 200;
+        const d = 80;
         this.sunLight.shadow.camera.left = -d;
         this.sunLight.shadow.camera.right = d;
         this.sunLight.shadow.camera.top = d;
         this.sunLight.shadow.camera.bottom = -d;
-        this.sunLight.shadow.bias = -0.0005; // fix shadow acne
-        this.sunLight.shadow.normalBias = 0.02;
+        this.sunLight.shadow.bias = -0.001; // fix shadow acne
+        this.sunLight.shadow.normalBias = 0.05; // fix shadow blinds
         this.scene.add(this.sunLight);
 
         // Sun Mesh
@@ -72,9 +72,9 @@ export class LightingSystem {
     _getLightState(time) {
         // 0.0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset, 1.0 = midnight
         const states = [
-            // Midnight - very dark, almost black
-            { t: 0.0, amb: new THREE.Color(0x333344), bg: new THREE.Color(0x050510), top: new THREE.Color(0x020208), sun: 0.0, hemi: 0.4 },
-            { t: 0.2, amb: new THREE.Color(0x333344), bg: new THREE.Color(0x050510), top: new THREE.Color(0x020208), sun: 0.0, hemi: 0.4 },
+            // Midnight - slightly brighter so you can see without torches
+            { t: 0.0, amb: new THREE.Color(0x555566), bg: new THREE.Color(0x101018), top: new THREE.Color(0x0a0a14), sun: 0.0, hemi: 0.6 },
+            { t: 0.2, amb: new THREE.Color(0x555566), bg: new THREE.Color(0x101018), top: new THREE.Color(0x0a0a14), sun: 0.0, hemi: 0.6 },
             // Sunrise - pink/orange horizon, light blue top
             { t: 0.25, amb: new THREE.Color(0x8a6b52), bg: new THREE.Color(0xffa65a), top: new THREE.Color(0x82a6ff), sun: 0.8, hemi: 0.8 },
             // Day - bright Minecraft blue, high ambient light for soft shadows
@@ -83,8 +83,8 @@ export class LightingSystem {
             // Sunset - orange/red horizon
             { t: 0.75, amb: new THREE.Color(0x8a5050), bg: new THREE.Color(0xff5a5a), top: new THREE.Color(0x5a82f2), sun: 0.8, hemi: 0.8 },
             // Night
-            { t: 0.8, amb: new THREE.Color(0x333344), bg: new THREE.Color(0x050510), top: new THREE.Color(0x020208), sun: 0.0, hemi: 0.4 },
-            { t: 1.0, amb: new THREE.Color(0x333344), bg: new THREE.Color(0x050510), top: new THREE.Color(0x020208), sun: 0.0, hemi: 0.4 }
+            { t: 0.8, amb: new THREE.Color(0x555566), bg: new THREE.Color(0x101018), top: new THREE.Color(0x0a0a14), sun: 0.0, hemi: 0.6 },
+            { t: 1.0, amb: new THREE.Color(0x555566), bg: new THREE.Color(0x101018), top: new THREE.Color(0x0a0a14), sun: 0.0, hemi: 0.6 }
         ];
 
         for (let i = 0; i < states.length - 1; i++) {
@@ -128,9 +128,14 @@ export class LightingSystem {
         this.hemiLight.groundColor.copy(state.amb);
         this.hemiLight.intensity = state.hemi;
         
-        this.scene.background = isUnderwater ? new THREE.Color(0x113366) : state.bg;
+        this.scene.background = isUnderwater ? new THREE.Color(0x3377aa) : state.bg;
         if (this.scene.fog) {
             this.scene.fog.color.copy(this.scene.background);
+            if (isUnderwater) {
+                this.scene.fog.density = 0.05;
+            } else {
+                this.scene.fog.density = this.scene.fog.baseDensity || 0.01;
+            }
         }
         
         // Update SkyDome gradient
