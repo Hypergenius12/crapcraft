@@ -247,7 +247,7 @@ export class Chunk {
             for (let z = 0; z < CHUNK_SIZE; z++) {
                 for (let x = 0; x < CHUNK_SIZE; x++) {
                     const blockType = this.getBlock(x, y, z);
-                    if (blockType === BLOCKS.AIR || blockType === BLOCKS.CHEST_BLOCK) continue;
+                    if (blockType === BLOCKS.AIR || blockType === BLOCKS.CHEST_BLOCK || blockType === BLOCKS.DUNGEON_DOOR) continue;
 
                     const wx = wxBase + x;
                     const wz = wzBase + z;
@@ -556,6 +556,13 @@ export class World {
                 if (this.onChestPlaced) this.onChestPlaced(wx, wy, wz);
             }
 
+            // Register door placement/removal
+            if (oldType === window.BLOCKS.DUNGEON_DOOR && type !== window.BLOCKS.DUNGEON_DOOR) {
+                if (this.onDoorRemoved) this.onDoorRemoved(wx, wy, wz);
+            } else if (oldType !== window.BLOCKS.DUNGEON_DOOR && type === window.BLOCKS.DUNGEON_DOOR) {
+                if (this.onDoorPlaced) this.onDoorPlaced(wx, wy, wz);
+            }
+
             if (!this.chunksToBuild.includes(chunk)) {
                 this.chunksToBuild.push(chunk);
             }
@@ -704,16 +711,21 @@ export class World {
             this.chunksToBuild.push(chunk);
 
             // Register chests
-            if (this.onChestGenerated) {
+            if (this.onChestGenerated || this.onDoorGenerated) {
                 for (let i = 0; i < chunk.blocks.length; i++) {
-                    if (chunk.blocks[i] === window.BLOCKS.CHEST_BLOCK) { // Assuming window.BLOCKS is available
+                    const blockType = chunk.blocks[i];
+                    if (blockType === window.BLOCKS.CHEST_BLOCK || blockType === window.BLOCKS.DUNGEON_DOOR) {
                         const y = Math.floor(i / (16 * 16));
                         const rem = i % (16 * 16);
                         const z = Math.floor(rem / 16);
                         const x = rem % 16;
                         const wx = chunk.cx * 16 + x;
                         const wz = chunk.cz * 16 + z;
-                        this.onChestGenerated(wx, y, wz);
+                        if (blockType === window.BLOCKS.CHEST_BLOCK && this.onChestGenerated) {
+                            this.onChestGenerated(wx, y, wz);
+                        } else if (blockType === window.BLOCKS.DUNGEON_DOOR && this.onDoorGenerated) {
+                            this.onDoorGenerated(wx, y, wz);
+                        }
                     }
                 }
             }
@@ -878,7 +890,12 @@ export class World {
                 for (let x = minX; x <= maxX; x++) {
                     for (let z = minZ; z <= maxZ; z++) {
                         const block = this.getBlock(x, y, z);
-                        if (getBlockProperties(block).solid) return true;
+                        if (getBlockProperties(block).solid) {
+                            if (block === window.BLOCKS.DUNGEON_DOOR && this.isDoorOpen && this.isDoorOpen(x, y, z)) {
+                                continue;
+                            }
+                            return true;
+                        }
                     }
                 }
             }

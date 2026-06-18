@@ -56,18 +56,33 @@ class ChestVisual {
 
         const tex = atlas.texture;
         
+        // Helper to clone texture for a specific face to set its UVs
+        const makeMat = (uvData) => {
+            const faceTex = tex.clone();
+            faceTex.repeat.set(uvData.uSize, uvData.vSize);
+            faceTex.offset.set(uvData.u, uvData.v);
+            faceTex.needsUpdate = true;
+            return new THREE.MeshLambertMaterial({ map: faceTex });
+        };
+        
+        // Materials order for BoxGeometry: right (+x), left (-x), top (+y), bottom (-y), front (+z), back (-z)
+        const sideMat = makeMat(atlas.getUV(window.BLOCKS.CHEST_BLOCK, 'side'));
+        const topMat = makeMat(atlas.getUV(window.BLOCKS.CHEST_BLOCK, 'top'));
+        const botMat = makeMat(atlas.getUV(window.BLOCKS.CHEST_BLOCK, 'bottom'));
+        const frontMat = makeMat(atlas.getUV(window.BLOCKS.CHEST_BLOCK, 'front'));
+        
+        const chestMaterials = [sideMat, sideMat, topMat, botMat, frontMat, sideMat];
+        
         // Base
         const baseGeo = new THREE.BoxGeometry(0.875, 0.625, 0.875);
         baseGeo.translate(0, 0.3125, 0); // Origin at bottom center
-        const baseMat = new THREE.MeshLambertMaterial({ map: tex }); // Uses same texture for now, could be specific UVs
-        const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+        const baseMesh = new THREE.Mesh(baseGeo, chestMaterials);
         this.group.add(baseMesh);
 
         // Lid
         const lidGeo = new THREE.BoxGeometry(0.875, 0.25, 0.875);
         lidGeo.translate(0, 0.125, 0.4375); // Origin at hinge (back edge)
-        const lidMat = new THREE.MeshLambertMaterial({ map: tex });
-        this.lidMesh = new THREE.Mesh(lidGeo, lidMat);
+        this.lidMesh = new THREE.Mesh(lidGeo, chestMaterials);
         this.lidMesh.position.set(0, 0.625, -0.4375);
         this.group.add(this.lidMesh);
 
@@ -83,9 +98,58 @@ class ChestVisual {
     dispose() {
         this.scene.remove(this.group);
         this.group.children.forEach(c => {
-            c.geometry.dispose();
-            c.material.dispose();
+            if (c.geometry) c.geometry.dispose();
+            if (c.material) {
+                if (Array.isArray(c.material)) c.material.forEach(m => m.dispose());
+                else c.material.dispose();
+            }
         });
+    }
+}
+
+class DoorVisual {
+    constructor(scene, x, y, z, atlas) {
+        this.scene = scene;
+        this.pos = { x, y, z };
+        this.isOpen = false;
+        this.doorAngle = 0;
+        this.targetAngle = 0;
+        
+        this.group = new THREE.Group();
+        // Position at the hinge corner (left side of the block)
+        this.group.position.set(x, y, z);
+        
+        const tex = atlas.texture;
+        const makeMat = (uvData) => {
+            const faceTex = tex.clone();
+            faceTex.repeat.set(uvData.uSize, uvData.vSize);
+            faceTex.offset.set(uvData.u, uvData.v);
+            faceTex.needsUpdate = true;
+            return new THREE.MeshLambertMaterial({ map: faceTex });
+        };
+        
+        const mat = makeMat(atlas.getUV(window.BLOCKS.DUNGEON_DOOR, 'front'));
+        
+        // 1 block wide, 1 block tall, 0.15 deep
+        const doorGeo = new THREE.BoxGeometry(1.0, 1.0, 0.15);
+        doorGeo.translate(0.5, 0.5, 0.075); // Pivot at left edge (x=0, z=0)
+        
+        this.mesh = new THREE.Mesh(doorGeo, mat);
+        this.group.add(this.mesh);
+        
+        this.scene.add(this.group);
+    }
+    
+    update(dt) {
+        this.targetAngle = this.isOpen ? Math.PI / 2 : 0;
+        this.doorAngle += (this.targetAngle - this.doorAngle) * 10 * dt;
+        this.mesh.rotation.y = this.doorAngle;
+    }
+    
+    dispose() {
+        this.scene.remove(this.group);
+        if (this.mesh.geometry) this.mesh.geometry.dispose();
+        if (this.mesh.material) this.mesh.material.dispose();
     }
 }
 
@@ -153,6 +217,24 @@ class Game {
                 }
                 this.chestInventories.delete(key);
             }
+        };
+
+        // Door Management
+        this.doorVisuals = new Map();
+        
+        this.world.onDoorGenerated = (x, y, z) => this._addDoor(x, y, z);
+        this.world.onDoorPlaced = (x, y, z) => this._addDoor(x, y, z);
+        this.world.onDoorRemoved = (x, y, z) => {
+            const key = `${x},${y},${z}`;
+            if (this.doorVisuals.has(key)) {
+                this.doorVisuals.get(key).dispose();
+                this.doorVisuals.delete(key);
+            }
+        };
+        
+        this.world.isDoorOpen = (x, y, z) => {
+            const key = `${x},${y},${z}`;
+            return this.doorVisuals.has(key) && this.doorVisuals.get(key).isOpen;
         };
 
         // Expose BLOCKS globally for UISystem recipe matching
@@ -286,41 +368,31 @@ class Game {
 
             if (isGenerated) {
                 // Determine loot type based on height / location
-                // Simple RNG based on coords
-                const seed = Math.sin(x * 31 + y * 7 + z * 13) * 10000;
-                const rng = () => {
-                    const val = Math.sin(seed + Math.random()) * 10000;
-                    return val - Math.floor(val);
-                };
-
+        if (isGenerated) {
+            // Generate loot for this chest
+            if (!this.chestInventories.has(key)) {
+                const inv = new Array(27).fill(null);
+                this.chestInventories.set(key, inv);
+                
+                // Randomly generate loot
+                const rng = () => Math.random();
                 let lootTable = [];
-                if (y < 15) {
-                    // Dungeon
+                // Check if this is a dungeon chest based on depth
+                if (y < 40) {
                     lootTable = [
-                        { item: new Item('material', 'iron_ingot', {}, 'Iron Ingot'), maxCount: 4, chance: 0.6 },
-                        { item: new Item('material', 'gold_ingot', {}, 'Gold Ingot'), maxCount: 3, chance: 0.4 },
-                        { item: new Item('material', 'diamond', {}, 'Diamond'), maxCount: 2, chance: 0.1 },
-                        { item: new Item('material', 'mana_crystal', {}, 'Mana Crystal'), maxCount: 3, chance: 0.3 },
-                        { item: new Item('equipment', 'sword_iron', {}, 'Iron Sword'), maxCount: 1, chance: 0.2 },
-                        { item: Item.blockItem(window.BLOCKS.TORCH, 'Torch'), maxCount: 16, chance: 0.8 }
-                    ];
-                } else if (y >= 15 && y < 25) {
-                    // Cabin / surface
-                    lootTable = [
-                        { item: Item.blockItem(window.BLOCKS.WOOD, 'Wood'), maxCount: 10, chance: 0.7 },
-                        { item: Item.blockItem(window.BLOCKS.PLANKS, 'Planks'), maxCount: 20, chance: 0.8 },
-                        { item: new Item('material', 'stick', {}, 'Stick'), maxCount: 12, chance: 0.6 },
-                        { item: Item.blockItem(window.BLOCKS.COBBLESTONE, 'Cobblestone'), maxCount: 32, chance: 0.5 },
-                        { item: new Item('equipment', 'axe_stone', {}, 'Stone Axe'), maxCount: 1, chance: 0.3 },
-                        { item: new Item('material', 'coal', {}, 'Coal'), maxCount: 8, chance: 0.5 }
+                        { item: Item.materialItem('iron_ingot', 1, 'Iron Ingot'), maxCount: 8, chance: 0.6 },
+                        { item: Item.materialItem('gold_ingot', 1, 'Gold Ingot'), maxCount: 4, chance: 0.4 },
+                        { item: Item.materialItem('diamond', 1, 'Diamond'), maxCount: 2, chance: 0.2 },
+                        { item: Item.materialItem('mana_crystal', 1, 'Mana Crystal'), maxCount: 4, chance: 0.3 },
+                        { item: Item.equipmentItem('sword', { damage: 8 }, 'Iron Sword'), maxCount: 1, chance: 0.2 },
+                        { item: Item.equipmentItem('chest', { protection: 4 }, 'Iron Chestplate'), maxCount: 1, chance: 0.15 }
                     ];
                 } else {
-                    // Wizard tower (high up)
                     lootTable = [
-                        { item: new Item('material', 'mana_crystal', {}, 'Mana Crystal'), maxCount: 5, chance: 0.7 },
-                        { item: new Item('material', 'diamond', {}, 'Diamond'), maxCount: 2, chance: 0.3 },
-                        { item: Item.blockItem(window.BLOCKS.GLOWSTONE, 'Glowstone'), maxCount: 4, chance: 0.5 },
-                        { item: new Item('wand', 'wand_apprentice', { wand: { maxSlots: 3, spellSlots: [null, null, null], mana: 100, maxMana: 100 } }, 'Apprentice Wand'), maxCount: 1, chance: 0.2 },
+                        { item: Item.materialItem('wood_log', 1, 'Wood Log'), maxCount: 16, chance: 0.7 },
+                        { item: Item.materialItem('cobblestone', 1, 'Cobblestone'), maxCount: 32, chance: 0.8 },
+                        { item: Item.materialItem('coal', 1, 'Coal'), maxCount: 12, chance: 0.5 },
+                        { item: Item.equipmentItem('pickaxe', { mineSpeed: 1.5, damage: 3 }, 'Stone Pickaxe'), maxCount: 1, chance: 0.3 },
                         { item: new Item('spell', 'fire', { spell: { element: 'fire', type: 'projectile', cost: 10, modifiers: [] } }, 'Fire Spell'), maxCount: 1, chance: 0.4 },
                         { item: new Item('spell', 'ice', { spell: { element: 'ice', type: 'projectile', cost: 10, modifiers: [] } }, 'Ice Spell'), maxCount: 1, chance: 0.4 }
                     ];
@@ -345,6 +417,14 @@ class Game {
         if (!this.chestVisuals.has(key)) {
             const visual = new ChestVisual(this.engine.scene, x, y, z, this.atlas);
             this.chestVisuals.set(key, visual);
+        }
+    }
+
+    _addDoor(x, y, z) {
+        const key = `${x},${y},${z}`;
+        if (!this.doorVisuals.has(key)) {
+            const visual = new DoorVisual(this.engine.scene, x, y, z, this.atlas);
+            this.doorVisuals.set(key, visual);
         }
     }
 
@@ -635,6 +715,38 @@ class Game {
                 return;
             }
 
+            if (hit.hit && hit.blockType === window.BLOCKS.DUNGEON_DOOR) {
+                // Toggle Door
+                this.audio.playClick();
+                const key = `${hit.blockPos.x},${hit.blockPos.y},${hit.blockPos.z}`;
+                let visual = this.doorVisuals.get(key);
+                
+                // If we didn't hit the bottom of the door, search vertically for the visual we clicked on
+                if (!visual) {
+                    for (let dy = -2; dy <= 2; dy++) {
+                        const k2 = `${hit.blockPos.x},${hit.blockPos.y + dy},${hit.blockPos.z}`;
+                        if (this.doorVisuals.has(k2)) {
+                            visual = this.doorVisuals.get(k2);
+                            break;
+                        }
+                    }
+                }
+                
+                if (visual) {
+                    visual.isOpen = !visual.isOpen;
+                    // Also toggle vertically stacked doors (dungeon generation stacks them 3 high)
+                    for (let dy = -2; dy <= 2; dy++) {
+                        if (dy === 0) continue;
+                        const k2 = `${visual.pos.x},${visual.pos.y + dy},${visual.pos.z}`;
+                        if (this.doorVisuals.has(k2)) {
+                            this.doorVisuals.get(k2).isOpen = visual.isOpen;
+                        }
+                    }
+                }
+                this.input.mouse.rightClick = false;
+                return;
+            }
+
             if (slot && slot.item.type === 'wand') {
                 if (this.player.activeSpellIndex === undefined) this.player.activeSpellIndex = 0;
                 this.player.activeSpellIndex = (this.player.activeSpellIndex + 1) % slot.item.data.wand.maxSlots;
@@ -806,6 +918,11 @@ class Game {
             visual.update(dt);
         }
 
+        // Update door visuals
+        for (const [key, visual] of this.doorVisuals.entries()) {
+            visual.update(dt);
+        }
+
         const _tempVec3 = new THREE.Vector3();
         
         this.projectileManager.update(dt, (proj) => {
@@ -932,6 +1049,35 @@ class Game {
         if (ht) ht.textContent = `${Math.ceil(this.player.health)}/${this.player.maxHealth}`;
         if (mf) mf.style.width = `${(this.player.mana / this.player.maxMana) * 100}%`;
         if (mt) mt.textContent = `${Math.ceil(this.player.mana)}/${this.player.maxMana}`;
+        
+        // Update Boss Health Bar UI
+        const bossUI = document.getElementById('boss-health-container');
+        const bossNameUI = document.getElementById('boss-name');
+        const bossFillUI = document.getElementById('boss-health-fill');
+        let activeBoss = null;
+        let closestDist = Infinity;
+        
+        for (const mob of this.entityManager.mobs) {
+            if (mob.isBoss && mob.alive) {
+                const dist = mob.position.distanceTo(this.player.position);
+                if (dist < 32 && dist < closestDist) {
+                    closestDist = dist;
+                    activeBoss = mob;
+                }
+            }
+        }
+        
+        if (bossUI) {
+            if (activeBoss) {
+                bossUI.style.display = 'block';
+                const bossType = activeBoss.typeKey || 'BOSS';
+                if (bossNameUI) bossNameUI.textContent = `${bossType} (${Math.ceil(activeBoss.health)}/${activeBoss.maxHealth})`;
+                if (bossFillUI) bossFillUI.style.width = `${Math.max(0, (activeBoss.health / activeBoss.maxHealth) * 100)}%`;
+            } else {
+                bossUI.style.display = 'none';
+            }
+        }
+
         const di = document.getElementById('debug-info');
         if (di && !di.classList.contains('hidden')) {
             try {

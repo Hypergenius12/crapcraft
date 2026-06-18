@@ -1153,11 +1153,14 @@ function generateBlockTexture(ctx, blockType, face, rng) {
                 addNoise(ctx, rng, 10);
                 ctx.strokeStyle = 'rgba(60, 40, 15, 0.8)';
                 ctx.strokeRect(1, 1, 14, 14);
-                // latch
-                ctx.fillStyle = '#111';
-                ctx.fillRect(7, 4, 2, 4);
-                ctx.fillStyle = '#ccc';
-                ctx.fillRect(7, 5, 2, 1);
+                
+                if (face === 'front') {
+                    // latch only on front
+                    ctx.fillStyle = '#111';
+                    ctx.fillRect(7, 4, 2, 4);
+                    ctx.fillStyle = '#ccc';
+                    ctx.fillRect(7, 5, 2, 1);
+                }
             }
             break;
         case BLOCKS.LADDER:
@@ -1212,18 +1215,20 @@ function generateBlockTexture(ctx, blockType, face, rng) {
                 ctx.strokeStyle = 'rgba(80, 80, 80, 0.9)';
                 ctx.strokeRect(0, 0, TEX_SIZE, TEX_SIZE);
                 ctx.strokeRect(2, 2, 12, 12);
-                // fire pit
-                ctx.fillStyle = '#222';
-                ctx.fillRect(4, 8, 8, 5);
-                addPixels(ctx, rng, 'rgba(255, 100, 0, 0.8)', 6);
-                addPixels(ctx, rng, 'rgba(255, 200, 0, 0.9)', 3);
+                
+                if (face === 'front') {
+                    // fire pit only on front
+                    ctx.fillStyle = '#222';
+                    ctx.fillRect(4, 8, 8, 5);
+                    addPixels(ctx, rng, 'rgba(255, 100, 0, 0.8)', 6);
+                    addPixels(ctx, rng, 'rgba(255, 200, 0, 0.9)', 3);
+                }
             }
             break;
         default:
             fillBase(ctx, 255, 0, 255);
             break;
     }
-}
 
 function hasFaceVariants(blockType) {
     return [
@@ -1250,7 +1255,7 @@ export function createTextureAtlas() {
         if (hasFaceVariants(bt)) {
             // Top
             uvMap[bt] = {};
-            for (const face of ['top', 'side', 'bottom']) {
+            for (const face of ['top', 'side', 'bottom', 'front']) {
                 entries.push({ blockType: bt, face, col, row });
                 uvMap[bt][face] = { col, row };
                 col++;
@@ -1258,7 +1263,7 @@ export function createTextureAtlas() {
             }
         } else {
             entries.push({ blockType: bt, face: 'all', col, row });
-            uvMap[bt] = { top: { col, row }, side: { col, row }, bottom: { col, row } };
+            uvMap[bt] = { top: { col, row }, side: { col, row }, bottom: { col, row }, front: { col, row } };
             col++;
             if (col >= ATLAS_COLS) { col = 0; row++; }
         }
@@ -1318,6 +1323,7 @@ export function createTextureAtlas() {
         let faceKey = 'side';
         if (face === 'top' || face === 'py') faceKey = 'top';
         else if (face === 'bottom' || face === 'ny') faceKey = 'bottom';
+        else if (face === 'front' || face === 'pz') faceKey = 'front';
         const entry = map[faceKey] || map.side || map.top;
         return {
             u: entry.col * uUnit,
@@ -1439,6 +1445,7 @@ export function generateItemTexture(itemType, itemSubtype) {
         'diamond': { c: '#00bcd4', d: '#00838f', h: '#84ffff' },
         'coal': { c: '#212121', d: '#000000', h: '#424242' },
         'mana_crystal': { c: '#03a9f4', d: '#01579b', h: '#b3e5fc' },
+        'boss': { c: '#aa00ff', d: '#5500aa', h: '#d580ff' },
         'stick': { c: '#795548', d: '#4e342e', h: '#a1887f' },
         'wand_basic': { c: '#795548', d: '#4e342e', g: '#e0e0e0' },
         'wand_fire': { c: '#795548', d: '#4e342e', g: '#ff3d00' },
@@ -1457,6 +1464,7 @@ export function generateItemTexture(itemType, itemSubtype) {
     if (itemSubtype.includes('iron')) matName = 'iron_ingot';
     if (itemSubtype.includes('gold')) matName = 'gold_ingot';
     if (itemSubtype.includes('diamond')) matName = 'diamond';
+    if (itemSubtype.includes('boss')) matName = 'boss';
 
     let p = palettes[matName] || palettes['iron_ingot'];
     
@@ -1490,7 +1498,7 @@ export function generateItemTexture(itemType, itemSubtype) {
     let shape = [];
 
     if (itemType === 'equipment') {
-        if (itemSubtype === 'sword') {
+        if (itemSubtype.includes('sword')) {
             shape = [
                 "            OBO ",
                 "           OBHBO",
@@ -1509,7 +1517,7 @@ export function generateItemTexture(itemType, itemSubtype) {
                 "                ",
                 "                "
             ];
-        } else if (itemSubtype === 'pickaxe') {
+        } else if (itemSubtype.includes('pickaxe')) {
             shape = [
                 "      OOOOOO    ",
                 "    OOOBHHHDOO  ",
@@ -1528,7 +1536,7 @@ export function generateItemTexture(itemType, itemSubtype) {
                 "       OO       ",
                 "                "
             ];
-        } else if (itemSubtype === 'axe') {
+        } else if (itemSubtype.includes('axe')) {
             shape = [
                 "     OOOO       ",
                 "    OBHHDO      ",
@@ -1547,7 +1555,7 @@ export function generateItemTexture(itemType, itemSubtype) {
                 "                ",
                 "                "
             ];
-        } else if (itemSubtype === 'head') {
+        } else if (itemSubtype.includes('head')) {
             shape = [
                 "                ",
                 "   OOOOOOOOOO   ",
@@ -1566,7 +1574,7 @@ export function generateItemTexture(itemType, itemSubtype) {
                 "                ",
                 "                "
             ];
-        } else if (itemSubtype === 'chest') {
+        } else if (itemSubtype.includes('chest')) {
             shape = [
                 "   OO      OO   ",
                 "  OHDO    OHDO  ",
@@ -1585,7 +1593,7 @@ export function generateItemTexture(itemType, itemSubtype) {
                 "                ",
                 "                "
             ];
-        } else if (itemSubtype === 'legs') {
+        } else if (itemSubtype.includes('legs')) {
             shape = [
                 "                ",
                 "  OOOOOOOOOOOO  ",
@@ -1604,7 +1612,7 @@ export function generateItemTexture(itemType, itemSubtype) {
                 "                ",
                 "                "
             ];
-        } else if (itemSubtype === 'boots') {
+        } else if (itemSubtype.includes('boots')) {
             shape = [
                 "                ",
                 "                ",

@@ -63,6 +63,15 @@
         <div id="debug-biome">Biome: None</div>
         <div id="debug-block">Looking at: None</div>
     </div>
+    
+    <!-- Boss Health Bar -->
+    <div id="boss-health-container" style="display:none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 400px; text-align: center; pointer-events: none; z-index: 1000;">
+        <div id="boss-name" style="color: #ffaa00; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 18px; text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; letter-spacing: 2px; margin-bottom: 5px; text-transform: uppercase;">BOSS NAME</div>
+        <div style="width: 100%; height: 16px; background: rgba(0,0,0,0.8); border: 2px solid #555; border-radius: 8px; overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.5);">
+            <div id="boss-health-fill" style="width: 100%; height: 100%; background: linear-gradient(90deg, #ff0000, #ff5555); transition: width 0.2s ease-out;"></div>
+        </div>
+    </div>
+
     <!-- HUD overlay for the game -->
     <div id="error-overlay" style="display:none; position:absolute; top:10%; left:10%; right:10%; background:rgba(255,0,0,0.8); color:white; padding:20px; z-index:9999; font-family:monospace; border:3px solid white; white-space:pre-wrap;"></div>
     <script>

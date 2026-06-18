@@ -1455,15 +1455,61 @@ export class Boss extends Mob {
         this.damage *= 2;
         this.speed *= 0.8;
         this.isBoss = true;
+        this.phase = 1;
+        this.abilityTimer = 0;
+        this.didSlam = false;
+        this.wantsToSummon = false;
     }
     
     getMesh() {
         super.getMesh();
-        // Scale boss mesh up
+        // Scale boss mesh up significantly
         if (this.mesh) {
-            this.mesh.scale.setScalar(1.8);
+            this.mesh.scale.setScalar(2.0);
         }
         return this.mesh;
+    }
+
+    update(dt, world, playerPos) {
+        super.update(dt, world, playerPos);
+        if (!this.alive) return;
+
+        const dist = this.position.distanceTo(playerPos);
+        if (dist > 32) return; // Wait until player is near
+
+        // Phase Transition (Enrage below 50% health)
+        const pct = this.health / this.maxHealth;
+        if (this.phase === 1 && pct <= 0.5) {
+            this.phase = 2;
+            this.speed *= 1.3;
+            this.damage *= 1.3;
+            // Visual enrage effect (Red Tint)
+            if (this.mesh) {
+                this.mesh.traverse(child => {
+                    if (child.isMesh && child.material && child.material.emissive) {
+                        child.material.emissive.setHex(0x550000);
+                        child.material.emissiveIntensity = 1.5;
+                    }
+                });
+            }
+        }
+
+        // Special Abilities
+        this.abilityTimer += dt;
+        const abilityInterval = this.phase === 1 ? 5.0 : 3.5;
+
+        if (this.abilityTimer > abilityInterval) {
+            this.abilityTimer = 0;
+            const r = Math.random();
+            if (r < 0.5) {
+                // Ground Slam: Jump up, and trigger slam when hitting the ground
+                this.velocity.y = 8;
+                this.didSlam = true;
+            } else {
+                // Summon Minion
+                this.wantsToSummon = true;
+            }
+        }
     }
 }
 
@@ -1570,6 +1616,29 @@ export class EntityManager {
                 const d = document.getElementById('damage-flash');
                 if (d) { d.classList.add('active'); setTimeout(() => d.classList.remove('active'), 200); }
             }
+
+            // Boss Abilities
+            if (mob.isBoss && player && mob.alive) {
+                if (mob.didSlam && mob.grounded && mob.velocity.y <= 0) {
+                    mob.didSlam = false;
+                    const dist = mob.position.distanceTo(playerPos);
+                    if (dist < 10) {
+                        player.takeDamage(mob.damage * 1.5);
+                        player.velocity.y = 6; // Knockup effect
+                        const d = document.getElementById('damage-flash');
+                        if (d) { d.classList.add('active'); setTimeout(() => d.classList.remove('active'), 200); }
+                    }
+                }
+                if (mob.wantsToSummon) {
+                    mob.wantsToSummon = false;
+                    // Summon a skeleton or zombie nearby
+                    const sx = mob.position.x + (Math.random() - 0.5) * 6;
+                    const sz = mob.position.z + (Math.random() - 0.5) * 6;
+                    const minionTypes = ['SKELETON', 'ZOMBIE', 'SPIDER'];
+                    const minion = new Mob(minionTypes[Math.floor(Math.random() * minionTypes.length)], new THREE.Vector3(sx, mob.position.y + 1, sz));
+                    this.addMob(minion);
+                }
+            }
             
             if (mob.justDied) {
                 // Drop spell or modifier
@@ -1585,13 +1654,13 @@ export class EntityManager {
                 if (mob.isBoss) {
                     const r = Math.random();
                     if (r < 0.25) {
-                        this.spawnItem(Item.equipmentItem('chestplate', { protection: 5 }, 'Boss Armor', 'Wearable armor that reduces damage.'), 1, mob.position.clone());
+                        this.spawnItem(Item.equipmentItem('boss_chestplate', { protection: 5 }, 'Boss Armor', 'Wearable armor that reduces damage.'), 1, mob.position.clone());
                     } else if (r < 0.5) {
-                        this.spawnItem(Item.equipmentItem('boots', { flying: true }, 'Flying Boots', 'Allows you to fly.'), 1, mob.position.clone());
+                        this.spawnItem(Item.equipmentItem('boss_boots', { flying: true }, 'Flying Boots', 'Allows you to fly.'), 1, mob.position.clone());
                     } else if (r < 0.75) {
-                        this.spawnItem(Item.equipmentItem('boots', { speedMult: 2.5 }, 'Speed Boots', 'Run super fast.'), 1, mob.position.clone());
+                        this.spawnItem(Item.equipmentItem('boss_boots', { speedMult: 2.5 }, 'Speed Boots', 'Run super fast.'), 1, mob.position.clone());
                     } else {
-                        this.spawnItem(Item.equipmentItem('axe', { mineSpeed: 5.0 }, 'Super Mine Axe', 'Mines blocks instantly.'), 1, mob.position.clone());
+                        this.spawnItem(Item.equipmentItem('boss_axe', { mineSpeed: 5.0 }, 'Super Mine Axe', 'Mines blocks instantly.'), 1, mob.position.clone());
                     }
                 }
 
