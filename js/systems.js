@@ -707,6 +707,16 @@ class UISystem {
         });
     }
 
+    _updateInventory() {
+        if (!this.currentPlayer) return;
+        const p = this.currentPlayer;
+        this.renderGrid(this.elements.mainHotbar, p.inventory.slots.slice(0, 9), 0, p, 'inventory');
+        if (this.isOpen) {
+            this.renderGrid(this.elements.mainGrid, p.inventory.slots.slice(9, 36), 9, p, 'inventory');
+            this.renderGrid(this.elements.invHotbar, p.inventory.slots.slice(0, 9), 0, p, 'inventory');
+        }
+    }
+
     _updateArmorSlots() {
         if (!this.currentPlayer) return;
         const ARMOR_NAMES = ['head', 'chest', 'legs', 'boots'];
