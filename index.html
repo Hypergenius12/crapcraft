@@ -20,6 +20,11 @@
                 <span style="color: #8b5a2b;">Crap</span><span style="color: #4da64d;">Craft</span>
             </h1>
             <p class="subtitle" style="font-family: 'Comic Sans MS'; color: #aa8866; font-size: 1.5rem; margin-top: -10px;">It's literally dirt. Enjoy.</p>
+            <div style="margin: 16px 0; display: flex; align-items: center; gap: 10px; justify-content: center;">
+                <label style="color: #aa8866; font-family: 'Comic Sans MS'; font-size: 1rem;">World Seed:</label>
+                <input id="seed-input" type="text" placeholder="(random)" maxlength="40"
+                    style="background: rgba(0,0,0,0.5); border: 1px solid #664422; color: #eeddbb; padding: 6px 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; border-radius: 6px; width: 200px; outline: none;"/>
+            </div>
             <div class="start-actions">
                 <button id="btn-new-game" class="menu-btn primary">New Game</button>
             </div>
@@ -40,6 +45,11 @@
                 <div style="margin: 20px 0; background: rgba(0,0,0,0.5); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
                     <label style="display: block; color: white; margin-bottom: 10px; font-family: 'Outfit';">Field of View: <span id="fov-val">75</span></label>
                     <input type="range" id="fov-slider" min="30" max="120" value="75" style="width: 100%; cursor: pointer;">
+                </div>
+                <div style="margin: 10px 0; background: rgba(0,0,0,0.5); padding: 16px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 10px;">
+                    <span style="color: rgba(255,255,255,0.7); font-family: 'Outfit'; font-size: 0.9rem;">World Seed:</span>
+                    <span id="current-seed-display" style="color: #aaddff; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; flex: 1;">-</span>
+                    <button id="btn-copy-seed" class="menu-btn" style="padding: 6px 14px; font-size: 0.8rem; margin: 0;">Copy</button>
                 </div>
                 <button id="btn-quit" class="menu-btn">Quit to Title</button>
             </div>
@@ -96,6 +106,22 @@
                 </div>
             </div>
 
+            <!-- Crafting Panel -->
+            <div class="crafting-col" id="crafting-panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <div style="color: white; font-weight: bold; font-size: 1rem; letter-spacing: 1px; text-transform: uppercase; opacity: 0.7;">Crafting</div>
+                    <button id="btn-recipe-book" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 0.8rem;">📖 Recipe Book</button>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div class="crafting-grid" id="crafting-grid">
+                        <!-- 4 crafting slots, filled by JS -->
+                    </div>
+                    <div style="font-size: 1.4rem; color: rgba(255,255,255,0.5);">→</div>
+                    <div class="inv-slot crafting-output" id="crafting-output"></div>
+                </div>
+                <div id="crafting-recipe-name" style="margin-top: 10px; font-size: 0.75rem; color: rgba(255,255,255,0.4); font-family: 'JetBrains Mono', monospace;"></div>
+            </div>
+
             <!-- Wand Configurator -->
             <div class="wand-config-col hidden" id="wand-config-panel">
                 <div style="color: white; font-weight: bold; margin-bottom: 10px; font-size: 1.2rem;" id="wand-config-title">Wand Configuration</div>
@@ -103,6 +129,17 @@
                     <!-- Filled by JS -->
                 </div>
             </div>
+        </div>
+    </div>
+    
+    <!-- Recipe Book Modal -->
+    <div id="recipe-book-modal" class="hidden" style="position: absolute; top: 10%; left: 50%; transform: translateX(-50%); width: 400px; max-height: 80%; background: rgba(20,20,25,0.95); border: 2px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 20px; color: white; overflow-y: auto; z-index: 1000; box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 10px;">
+            <h2 style="margin: 0; font-size: 1.2rem;">Recipe Book</h2>
+            <button id="btn-close-recipes" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">&times;</button>
+        </div>
+        <div id="recipe-list" style="font-size: 0.9rem; line-height: 1.5; color: #ccc;">
+            <!-- Filled by JS -->
         </div>
     </div>
     

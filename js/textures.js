@@ -83,7 +83,9 @@ export const BLOCKS = {
     DUNGEON_UNDEAD_BRICK: 74,
     DUNGEON_UNDEAD_FLOOR: 75,
     DUNGEON_DOOR: 76,
-    BOSS_SPAWNER: 77
+    BOSS_SPAWNER: 77,
+    COAL_ORE: 78,
+    DIAMOND_ORE: 79
 };
 
 // Block properties
@@ -165,7 +167,9 @@ const BLOCK_PROPS = {
     [BLOCKS.DUNGEON_UNDEAD_BRICK]:{name: 'Undead Brick',health: 12, transparent: false, emissive: 0, solid: true, drops: null },
     [BLOCKS.DUNGEON_UNDEAD_FLOOR]:{name: 'Undead Floor',health: 12, transparent: false, emissive: 0, solid: true, drops: null },
     [BLOCKS.DUNGEON_DOOR]:  { name: 'Dungeon Door',   health: 5, transparent: false, emissive: 0, solid: true, drops: null },
-    [BLOCKS.BOSS_SPAWNER]:  { name: 'Boss Spawner',   health: Infinity, transparent: true, emissive: 0, solid: false, drops: null }
+    [BLOCKS.BOSS_SPAWNER]:  { name: 'Boss Spawner',   health: Infinity, transparent: true, emissive: 0, solid: false, drops: null },
+    [BLOCKS.COAL_ORE]:      { name: 'Coal Ore',       health: 6, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.DIAMOND_ORE]:   { name: 'Diamond Ore',    health: 10, transparent: false, emissive: 0.2, solid: true, drops: null }
 };
 
 export function getBlockProperties(type) {
@@ -1061,6 +1065,18 @@ function generateBlockTexture(ctx, blockType, face, rng) {
             ctx.fillRect(7, 6, 1, 10);
             ctx.fillRect(6, 8, 1, 1);
             ctx.fillRect(5, 11, 1, 1);
+            break;
+        case BLOCKS.COAL_ORE:
+            fillBase(ctx, 128, 128, 128);
+            addNoise(ctx, rng, 16);
+            drawOreSpots(ctx, rng, 'rgba(25, 25, 25, 0.95)', 7);
+            drawOreSpots(ctx, rng, 'rgba(10, 10, 10, 0.7)', 3);
+            break;
+        case BLOCKS.DIAMOND_ORE:
+            fillBase(ctx, 128, 128, 128);
+            addNoise(ctx, rng, 16);
+            drawOreSpots(ctx, rng, 'rgba(50, 220, 220, 0.95)', 5);
+            drawOreSpots(ctx, rng, 'rgba(100, 255, 240, 0.6)', 3);
             break;
         default:
             fillBase(ctx, 255, 0, 255);

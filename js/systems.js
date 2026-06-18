@@ -225,16 +225,22 @@ class UISystem {
             wandConfigPanel: document.getElementById('wand-config-panel'),
             wandSlotsGrid: document.getElementById('wand-slots-grid'),
             dragIcon: document.getElementById('drag-item-icon'),
-            tooltip: document.getElementById('item-tooltip')
+            tooltip: document.getElementById('item-tooltip'),
+            craftingGrid: document.getElementById('crafting-grid'),
+            craftingOutput: document.getElementById('crafting-output'),
+            craftingRecipeName: document.getElementById('crafting-recipe-name')
         };
         this.isOpen = false;
         this.atlas = null;
         
+        // 4 crafting slots (2x2 grid)
+        this.craftingSlots = [null, null, null, null];
+
         this.dragState = {
             isDragging: false,
-            sourceType: null, // 'inventory' or 'wand'
+            sourceType: null, // 'inventory' | 'wand' | 'crafting' | 'crafting_output'
             sourceIndex: -1,
-            itemData: null, // {item, count}
+            itemData: null,
             offsetX: 0, offsetY: 0
         };
 
@@ -242,6 +248,20 @@ class UISystem {
 
         document.addEventListener('mousemove', (e) => this.onMouseMove(e));
         document.addEventListener('mouseup', (e) => this.onMouseUp(e));
+
+        this._initCraftingGrid();
+        this._initArmorSlots();
+
+        const btnRecipeBook = document.getElementById('btn-recipe-book');
+        const modalRecipeBook = document.getElementById('recipe-book-modal');
+        const btnCloseRecipes = document.getElementById('btn-close-recipes');
+        if (btnRecipeBook && modalRecipeBook && btnCloseRecipes) {
+            btnRecipeBook.onclick = () => {
+                modalRecipeBook.classList.remove('hidden');
+                this._populateRecipeBook();
+            };
+            btnCloseRecipes.onclick = () => modalRecipeBook.classList.add('hidden');
+        }
     }
 
     toggle() {
@@ -276,6 +296,13 @@ class UISystem {
             } else {
                 this.elements.wandConfigPanel.classList.add('hidden');
             }
+
+            // Render crafting slots
+            this._updateCraftingSlots();
+            this._updateCraftingOutput();
+
+            // Render armor slots
+            this._updateArmorSlots();
         }
     }
 
@@ -334,7 +361,7 @@ class UISystem {
                 // Use the 3D isometric icon canvas
                 const iconCanvas = this.atlas.getBlockIcon(slot.item.subtype);
                 const dataURL = iconCanvas.toDataURL();
-                inner = `<img src="${dataURL}" class="item-icon" />`;
+                inner = `<img src="${dataURL}" class="item-icon" draggable="false" />`;
             } else if (slot.item.type === 'wand') {
                 inner = `<div style="text-align:center; line-height:100%; font-size:30px;">🪄</div>`;
             } else if (slot.item.type === 'spell') {
@@ -342,6 +369,22 @@ class UISystem {
                 inner = `<div style="width:100%; height:100%; background:${colorHex}; border-radius:50%; box-shadow: 0 0 10px ${colorHex} inset;">
                     <div style="text-align:center; line-height:100%; font-size:24px; padding-top:10px;">✨</div>
                 </div>`;
+            } else if (slot.item.type === 'material') {
+                const MATERIAL_ICONS = {
+                    iron_ingot: '🔩', gold_ingot: '✨', diamond: '💎',
+                    coal: '⬛', mana_crystal: '🔷', stick: '🪵',
+                    wand_basic: '🪄', wand_fire: '🔥', wand_ice: '❄️', wand_nature: '🌿',
+                };
+                const emoji = MATERIAL_ICONS[slot.item.subtype] || '❓';
+                inner = `<div style="text-align:center;line-height:50px;font-size:22px;">${emoji}</div>`;
+            } else if (slot.item.type === 'equipment') {
+                const EQUIP_ICONS = {
+                    head: '🪖', chest: '🥋', legs: '👖', boots: '👟',
+                    sword: '⚔️', pickaxe: '⛏️', axe: '🪓',
+                    wand_basic: '🪄', wand_fire: '🔥', wand_ice: '❄️', wand_nature: '🌿',
+                };
+                const emoji = EQUIP_ICONS[slot.item.subtype] || '🛡️';
+                inner = `<div style="text-align:center;line-height:50px;font-size:22px;">${emoji}</div>`;
             } else {
                 inner = `<div style="text-align:center; line-height:100%;">${slot.item.name.substring(0,2).toUpperCase()}</div>`;
             }
@@ -357,7 +400,20 @@ class UISystem {
         if (!this.isOpen || e.button !== 0) return;
         let slot = null;
         if (type === 'inventory') slot = this.currentPlayer.inventory.slots[index];
-        else if (type === 'wand') {
+        else if (type === 'crafting') slot = this.craftingSlots[index];
+        else if (type === 'crafting_output') {
+            // Clicking output: collect if recipe matches
+            const result = this._matchRecipe();
+            if (result) {
+                this._consumeCraftingSlots();
+                this.currentPlayer.inventory.addItem(result.item, result.count);
+                this._updateCraftingSlots();
+                this._updateCraftingOutput();
+            }
+            return;
+        } else if (type === 'armor') {
+            slot = this.currentPlayer.inventory.armor[index];
+        } else if (type === 'wand') {
             const w = this.currentPlayer.inventory.slots[this.currentPlayer.selectedSlot];
             if (w && w.item.type === 'wand') slot = w.item.data.wand.spellSlots[index] ? { item: w.item.data.wand.spellSlots[index], count: 1 } : null;
         }
@@ -433,7 +489,50 @@ class UISystem {
         }
 
         // --- Execute Move/Swap ---
-        if (srcType === 'inventory' && targetType === 'inventory') {
+        if (srcType === 'inventory' && targetType === 'armor') {
+            // Equip from inventory to armor
+            const targetArmor = this.currentPlayer.inventory.armor[targetIndex];
+            this.currentPlayer.inventory.armor[targetIndex] = itemData;
+            inv[srcIndex] = targetArmor; // swap back
+        } else if (srcType === 'armor' && targetType === 'inventory') {
+            // Unequip armor to inventory
+            const targetSlot = inv[targetIndex];
+            inv[targetIndex] = this.currentPlayer.inventory.armor[srcIndex];
+            this.currentPlayer.inventory.armor[srcIndex] = targetSlot;
+        } else if (srcType === 'armor' && targetType === 'armor') {
+            const temp = this.currentPlayer.inventory.armor[targetIndex];
+            this.currentPlayer.inventory.armor[targetIndex] = this.currentPlayer.inventory.armor[srcIndex];
+            this.currentPlayer.inventory.armor[srcIndex] = temp;
+        } else if (srcType === 'crafting' && targetType === 'inventory') {
+            // Move from crafting to inventory
+            const targetSlot = inv[targetIndex];
+            if (!targetSlot) {
+                inv[targetIndex] = itemData;
+                this.craftingSlots[srcIndex] = null;
+            } else {
+                this.craftingSlots[srcIndex] = targetSlot;
+                inv[targetIndex] = itemData;
+            }
+        } else if (srcType === 'inventory' && targetType === 'crafting') {
+            // Move from inventory to crafting
+            const targetCraft = this.craftingSlots[targetIndex];
+            if (!targetCraft) {
+                this.craftingSlots[targetIndex] = itemData;
+                inv[srcIndex] = null;
+            } else if (targetCraft.item.type === itemData.item.type && targetCraft.item.subtype === itemData.item.subtype && itemData.item.stackable) {
+                const add = Math.min(itemData.count, itemData.item.maxStack - targetCraft.count);
+                targetCraft.count += add;
+                inv[srcIndex].count -= add;
+                if (inv[srcIndex].count <= 0) inv[srcIndex] = null;
+            } else {
+                this.craftingSlots[targetIndex] = itemData;
+                inv[srcIndex] = targetCraft;
+            }
+        } else if (srcType === 'crafting' && targetType === 'crafting') {
+            const temp = this.craftingSlots[targetIndex];
+            this.craftingSlots[targetIndex] = itemData;
+            this.craftingSlots[srcIndex] = temp;
+        } else if (srcType === 'inventory' && targetType === 'inventory') {
             const targetSlot = inv[targetIndex];
             if (targetSlot && targetSlot.item.type === itemData.item.type && targetSlot.item.subtype === itemData.item.subtype && targetSlot.item.stackable) {
                 // Stack
@@ -492,6 +591,9 @@ class UISystem {
         if (this.dragState.isDragging || !this.isOpen) return;
         let slot = null;
         if (type === 'inventory') slot = this.currentPlayer.inventory.slots[index];
+        else if (type === 'crafting') slot = this.craftingSlots[index];
+        else if (type === 'crafting_output') slot = this._matchRecipe();
+        else if (type === 'armor') slot = this.currentPlayer.inventory.armor[index];
         else if (type === 'wand') {
             const w = this.currentPlayer.inventory.slots[this.currentPlayer.selectedSlot];
             if (w && w.item.type === 'wand') {
@@ -512,6 +614,16 @@ class UISystem {
                 html += `<span style="color:#aaa;">Spell Slots: ${w.maxSlots}</span>`;
             } else if (slot.item.type === 'block') {
                 html += `<span style="color:#aaa;">Block</span>`;
+            } else if (slot.item.type === 'material') {
+                html += `<span style="color:#aaa;">Material — used for crafting</span>`;
+            } else if (slot.item.type === 'equipment') {
+                const ed = slot.item.data.equipData || {};
+                if (ed.protection) html += `<span style="color:#88aaff;">Protection: ${ed.protection}</span><br/>`;
+                if (ed.mineSpeed) html += `<span style="color:#ffaa44;">Mine Speed: ${ed.mineSpeed}x</span><br/>`;
+                if (ed.damage) html += `<span style="color:#ff6666;">Damage: ${ed.damage}</span><br/>`;
+                if (ed.speedMult) html += `<span style="color:#44ff88;">Speed: ${ed.speedMult}x</span><br/>`;
+                if (ed.flying) html += `<span style="color:#88ffff;">🕊 Can fly</span><br/>`;
+                if (slot.item.description) html += `<span style="color:#aaa;">${slot.item.description}</span>`;
             }
             this.elements.tooltip.innerHTML = html;
             this.elements.tooltip.classList.remove('hidden');
@@ -522,6 +634,250 @@ class UISystem {
 
     onSlotLeave() {
         this.elements.tooltip.classList.add('hidden');
+    }
+
+    // =============================
+    // Crafting Grid
+    // =============================
+    _initCraftingGrid() {
+        const grid = this.elements.craftingGrid;
+        if (!grid) return;
+        grid.innerHTML = '';
+        for (let i = 0; i < 4; i++) {
+            const el = document.createElement('div');
+            el.className = 'inv-slot';
+            el.onmousedown = (e) => this.onSlotMouseDown(e, 'crafting', i);
+            el.onmouseup = (e) => this.onSlotMouseUp(e, 'crafting', i);
+            el.onmouseenter = (e) => this.onSlotEnter(e, 'crafting', i);
+            el.onmouseleave = () => this.onSlotLeave();
+            grid.appendChild(el);
+        }
+
+        const out = this.elements.craftingOutput;
+        if (out) {
+            out.onmousedown = (e) => this.onSlotMouseDown(e, 'crafting_output', 0);
+            out.onmouseup = (e) => this.onSlotMouseUp(e, 'crafting_output', 0);
+            out.onmouseenter = (e) => this.onSlotEnter(e, 'crafting_output', 0);
+            out.onmouseleave = () => this.onSlotLeave();
+        }
+    }
+
+    _initArmorSlots() {
+        // Find all armor/offhand slots in the DOM and wire them up
+        const ARMOR_NAMES = ['head', 'chest', 'legs', 'boots', 'offhand'];
+        ARMOR_NAMES.forEach((slotName, i) => {
+            const isOffhand = slotName === 'offhand';
+            const el = document.querySelector(isOffhand ? '.offhand-slot' : `[data-slot="${slotName}"]`);
+            if (!el) return;
+            const armorIndex = isOffhand ? -1 : i;
+            el.onmousedown = (e) => this.onSlotMouseDown(e, 'armor', armorIndex);
+            el.onmouseup = (e) => this.onSlotMouseUp(e, 'armor', armorIndex);
+            el.onmouseenter = (e) => this.onSlotEnter(e, 'armor', armorIndex);
+            el.onmouseleave = () => this.onSlotLeave();
+        });
+    }
+
+    _updateArmorSlots() {
+        if (!this.currentPlayer) return;
+        const ARMOR_NAMES = ['head', 'chest', 'legs', 'boots'];
+        ARMOR_NAMES.forEach((slotName, i) => {
+            const el = document.querySelector(`[data-slot="${slotName}"]`);
+            if (!el) return;
+            this.renderSlotItem(el, this.currentPlayer.inventory.armor[i]);
+        });
+    }
+
+    _updateCraftingSlots() {
+        const grid = this.elements.craftingGrid;
+        if (!grid) return;
+        for (let i = 0; i < 4; i++) {
+            this.renderSlotItem(grid.children[i], this.craftingSlots[i]);
+        }
+    }
+
+    _updateCraftingOutput() {
+        const out = this.elements.craftingOutput;
+        const nameEl = this.elements.craftingRecipeName;
+        if (!out) return;
+        const result = this._matchRecipe();
+        if (result) {
+            this.renderSlotItem(out, result);
+            if (nameEl) nameEl.textContent = result.item.name;
+        } else {
+            this.renderSlotItem(out, null);
+            if (nameEl) nameEl.textContent = '';
+        }
+    }
+
+    _getSlotType(slot) {
+        if (!slot || !slot.item) return null;
+        if (slot.item.type === 'block') return slot.item.subtype;
+        if (slot.item.type === 'material') return slot.item.subtype;
+        if (slot.item.type === 'equipment') return slot.item.subtype;
+        return null;
+    }
+
+    _matchRecipe() {
+        // Build a 2x2 pattern from crafting slots [tl, tr, bl, br]
+        const s = this.craftingSlots.map(s => this._getSlotType(s));
+        const [tl, tr, bl, br] = s;
+
+        // Helper: check if a pattern (array of 4 block IDs or null) matches
+        const B = (typeof BLOCKS !== 'undefined') ? BLOCKS : window.BLOCKS;
+        if (!B) return null;
+
+        // Helper: get count of a specific material/block in the grid
+        const getCount = (type) => s.filter(x => x === type).length;
+        const totalItems = s.filter(x => x !== null).length;
+
+        const match = (pattern, out) => {
+            for (let i = 0; i < 4; i++) {
+                if (pattern[i] !== s[i]) return null;
+            }
+            return out;
+        };
+
+        // Utility to make a material item
+        const mat = (subType, name, count = 1, icon = null) => ({ item: { type: 'material', subtype: subType, name, stackable: true, maxStack: 64, id: `mat_${subType}`, data: { icon }, description: '' }, count });
+        const equip = (subType, data, name, desc, count = 1) => ({ item: { type: 'equipment', subtype: subType, name, stackable: false, maxStack: 1, id: `equip_${subType}_${Date.now()}`, data: { equipData: data }, description: desc }, count });
+        const block = (type, name, count = 1) => ({ item: { type: 'block', subtype: type, name, stackable: true, maxStack: 64, id: `block_${type}`, data: {}, description: '' }, count });
+
+        // --- Recipes ---
+        // Planks: Shapeless 1 Wood => 4 planks
+        if (getCount(B.WOOD) === 1 && totalItems === 1) return block(B.PLANKS, 'Planks', 4);
+        if (getCount(B.ACACIA_WOOD) === 1 && totalItems === 1) return block(B.PLANKS, 'Planks', 4);
+        if (getCount(B.CHERRY_LOG) === 1 && totalItems === 1) return block(B.PLANKS, 'Planks', 4);
+
+        // Sticks: Shapeless 2 Planks
+        if (getCount(B.PLANKS) === 2 && totalItems === 2) return mat('stick', 'Stick', 4);
+
+        // Torch: Shapeless 1 Coal + 1 Stick
+        if (getCount('coal') === 1 && getCount('stick') === 1 && totalItems === 2) return block(B.TORCH, 'Torch', 4);
+
+        // Tools (material + stick pattern: [mat, empty, stick, empty] )
+        const toolRecipe = (matType, mineSpeed, damage, chopSpeed, toolName, toolSubType) => {
+            if (s[0] === matType && !s[1] && s[2] === 'stick' && !s[3])
+                return equip(toolSubType, { mineSpeed, damage, chopSpeed }, toolName, `${toolName}. Mine Speed: ${mineSpeed}x`);
+            return null;
+        };
+
+        // Two-material recipes [mat, mat, stick, empty]
+        const armorRecipe2H = (matType, name, subType, protection) => {
+            if (s[0] === matType && s[1] === matType && !s[2] && !s[3])
+                return equip(subType, { protection }, name, `Protection: ${protection}`);
+            return null;
+        };
+        // Full grid armor [mat, mat, mat, mat]
+        const armorRecipeFull = (matType, name, subType, protection) => {
+            if (s[0] === matType && s[1] === matType && s[2] === matType && s[3] === matType)
+                return equip(subType, { protection }, name, `Protection: ${protection}`);
+            return null;
+        };
+        // U-shape [mat, mat, mat, empty]
+        const armorRecipeLegs = (matType, name, subType, protection) => {
+            if (s[0] === matType && s[1] === matType && s[2] === matType && !s[3])
+                return equip(subType, { protection }, name, `Protection: ${protection}`);
+            return null;
+        };
+        // Vertical [mat, empty, mat, empty]
+        const armorRecipeBoots = (matType, name, subType, protection) => {
+            if (s[0] === matType && !s[1] && s[2] === matType && !s[3])
+                return equip(subType, { protection }, name, `Protection: ${protection}`);
+            return null;
+        };
+
+        // Pickaxes
+        let r;
+        r = toolRecipe('iron_ingot', 3.0, 5, 1.5, 'Iron Pickaxe', 'pickaxe'); if (r) return r;
+        r = toolRecipe('diamond', 6.0, 8, 3.0, 'Diamond Pickaxe', 'pickaxe'); if (r) return r;
+        r = toolRecipe(B.COBBLESTONE, 2.0, 4, 1.2, 'Stone Pickaxe', 'pickaxe'); if (r) return r;
+        r = toolRecipe(B.PLANKS, 1.5, 3, 1.0, 'Wooden Pickaxe', 'pickaxe'); if (r) return r;
+
+        // Swords [mat, empty, stick, empty]
+        r = toolRecipe('iron_ingot', 1.0, 8, 1.0, 'Iron Sword', 'sword'); if (r) return r;
+        r = toolRecipe('diamond', 1.0, 12, 1.0, 'Diamond Sword', 'sword'); if (r) return r;
+        r = toolRecipe(B.COBBLESTONE, 1.0, 5, 1.0, 'Stone Sword', 'sword'); if (r) return r;
+        r = toolRecipe(B.PLANKS, 1.0, 3, 1.0, 'Wooden Sword', 'sword'); if (r) return r;
+
+        // Axes [mat, mat, empty, stick]
+        const axeRecipe = (matType, mineSpeed, name) => {
+            if (s[0] === matType && s[1] === matType && !s[2] && s[3] === 'stick')
+                return equip('axe', { mineSpeed, damage: mineSpeed }, name, `Chops wood fast. Speed: ${mineSpeed}x`);
+            return null;
+        };
+        r = axeRecipe('iron_ingot', 3.0, 'Iron Axe'); if (r) return r;
+        r = axeRecipe('diamond', 5.0, 'Diamond Axe'); if (r) return r;
+        r = axeRecipe(B.COBBLESTONE, 2.0, 'Stone Axe'); if (r) return r;
+        r = axeRecipe(B.PLANKS, 1.5, 'Wooden Axe'); if (r) return r;
+
+        // Armor — Iron
+        r = armorRecipe2H('iron_ingot', 'Iron Helmet', 'head', 2); if (r) return r;
+        r = armorRecipeFull('iron_ingot', 'Iron Chestplate', 'chest', 5); if (r) return r;
+        r = armorRecipeLegs('iron_ingot', 'Iron Leggings', 'legs', 3); if (r) return r;
+        r = armorRecipeBoots('iron_ingot', 'Iron Boots', 'boots', 2); if (r) return r;
+
+        // Armor — Diamond
+        r = armorRecipe2H('diamond', 'Diamond Helmet', 'head', 5); if (r) return r;
+        r = armorRecipeFull('diamond', 'Diamond Chestplate', 'chest', 10); if (r) return r;
+        r = armorRecipeLegs('diamond', 'Diamond Leggings', 'legs', 7); if (r) return r;
+        r = armorRecipeBoots('diamond', 'Diamond Boots', 'boots', 5); if (r) return r;
+
+        // Wands: [stick, iron_ingot, empty, empty] => Basic Wand
+        if (s[0] === 'stick' && s[1] === 'iron_ingot' && !s[2] && !s[3])
+            return equip('wand_basic', {}, 'Basic Wand', 'Channels raw magic.');
+        // Fire Wand: [wand_basic, coal, empty, empty]
+        if (s[0] === 'wand_basic' && s[1] === 'coal' && !s[2] && !s[3])
+            return equip('wand_fire', { element: 'FIRE' }, 'Fire Wand', 'Shoots fireballs.');
+        // Ice Wand: [wand_basic, snow, empty, empty]
+        if (s[0] === 'wand_basic' && s[1] === B.SNOW && !s[2] && !s[3])
+            return equip('wand_ice', { element: 'ICE' }, 'Ice Wand', 'Shoots ice blasts.');
+        // Nature Wand: [wand_basic, leaves, empty, empty]
+        if (s[0] === 'wand_basic' && (s[1] === B.LEAVES || s[1] === B.CHERRY_LEAVES || s[1] === B.AUTUMN_LEAVES) && !s[2] && !s[3])
+            return equip('wand_nature', { element: 'HEAL' }, 'Nature Wand', 'Heals the wielder.');
+
+        return null;
+    }
+
+    _consumeCraftingSlots(result) {
+        // Remove 1 from each crafting slot
+        for (let i = 0; i < 4; i++) {
+            if (this.craftingSlots[i]) {
+                this.craftingSlots[i].count -= 1;
+                if (this.craftingSlots[i].count <= 0) this.craftingSlots[i] = null;
+            }
+        }
+    }
+
+    _populateRecipeBook() {
+        const list = document.getElementById('recipe-list');
+        if (!list) return;
+        // Hardcoded list of recipes for display
+        const recipes = [
+            { result: "Planks (4)", ingredients: "1 Wood (Shapeless)" },
+            { result: "Stick (4)", ingredients: "2 Planks (Shapeless)" },
+            { result: "Torch (4)", ingredients: "1 Coal, 1 Stick (Shapeless)" },
+            { result: "Sword (Wood/Stone/Iron/Diamond)", ingredients: "1 Material (Top), 1 Stick (Bottom)" },
+            { result: "Pickaxe (Wood/Stone/Iron/Diamond)", ingredients: "2 Material (Top row), 1 Stick (Bottom Left)" },
+            { result: "Axe (Wood/Stone/Iron/Diamond)", ingredients: "2 Material (Top row), 1 Stick (Bottom Right)" },
+            { result: "Helmet (Iron/Diamond)", ingredients: "2 Material (Top row)" },
+            { result: "Chestplate (Iron/Diamond)", ingredients: "4 Material (Full Grid)" },
+            { result: "Leggings (Iron/Diamond)", ingredients: "3 Material (U-shape)" },
+            { result: "Boots (Iron/Diamond)", ingredients: "2 Material (Vertical)" },
+            { result: "Basic Wand", ingredients: "1 Stick, 1 Iron Ingot" },
+            { result: "Fire Wand", ingredients: "1 Basic Wand, 1 Coal" },
+            { result: "Ice Wand", ingredients: "1 Basic Wand, 1 Snow" },
+            { result: "Nature Wand", ingredients: "1 Basic Wand, 1 Leaves" }
+        ];
+
+        let html = '<ul style="list-style: none; padding: 0; margin: 0;">';
+        recipes.forEach(r => {
+            html += `<li style="margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
+                <div style="color: #fff; font-weight: bold; font-size: 1rem; margin-bottom: 4px;">${r.result}</div>
+                <div style="color: #88aaff; font-size: 0.85rem;">Requires: ${r.ingredients}</div>
+            </li>`;
+        });
+        html += '</ul>';
+        list.innerHTML = html;
     }
 }
 

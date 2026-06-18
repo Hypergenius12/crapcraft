@@ -73,9 +73,17 @@ class Game {
         // Generate textures
         this.atlas = createTextureAtlas();
 
+        // Seed: use typed value or generate random
+        const seedInput = document.getElementById('seed-input');
+        const rawSeed = seedInput && seedInput.value.trim() ? seedInput.value.trim() : (Math.random() * 1000000 | 0).toString();
+        this.worldSeed = rawSeed;
+
         // Planet Generation
-        this.planetParams = generatePlanetParams(Math.random() * 1000000);
+        this.planetParams = generatePlanetParams(rawSeed);
         this.world = new World(this.engine.scene, this.atlas);
+
+        // Expose BLOCKS globally for UISystem recipe matching
+        window.BLOCKS = BLOCKS;
 
         // Systems
         this.lighting = new LightingSystem(this.engine.scene);
@@ -144,6 +152,18 @@ class Game {
         document.getElementById('btn-quit').onclick = () => {
             location.reload(); // Simple quit
         };
+
+        // Copy Seed button
+        const copyBtn = document.getElementById('btn-copy-seed');
+        const seedDisplay = document.getElementById('current-seed-display');
+        if (seedDisplay) seedDisplay.textContent = this.worldSeed;
+        if (copyBtn) {
+            copyBtn.onclick = () => {
+                navigator.clipboard.writeText(this.worldSeed).catch(() => {});
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+            };
+        }
 
         const fovSlider = document.getElementById('fov-slider');
         const fovVal = document.getElementById('fov-val');
@@ -362,9 +382,15 @@ class Game {
                 }
                 this.input.mouse.leftClick = false; // single cast
             } else if (entityHit.hit && this.breakTimer === 0) { // Attack entity
-                const isWand = slot && slot.item.type === 'wand';
-                entityHit.mob.takeDamage(isWand ? 10 : 5, lookDir);
+                let damage = 5; // Unarmed base damage
+                if (slot && slot.item.type === 'equipment' && slot.item.data.equipData && slot.item.data.equipData.damage) {
+                    damage = slot.item.data.equipData.damage;
+                } else if (slot && slot.item.type === 'wand') {
+                    damage = 10;
+                }
+                entityHit.mob.takeDamage(damage, lookDir);
                 this.audio.playHit();
+
                 this.particles.emit(entityHit.mob.position, 'blood', 5, 0xff0000);
                 this.input.mouse.leftClick = false; // single attack per click
                 this.breakTimer = 0.5; // attack cooldown reuse breakTimer
@@ -394,8 +420,25 @@ class Game {
 
                     const props = getBlockProperties(blockType);
                     if (blockType !== BLOCKS.AIR && blockType !== BLOCKS.WATER && blockType !== BLOCKS.LAVA) {
-                        const dropType = props.drops !== undefined && props.drops !== null ? props.drops : blockType;
-                        this.entityManager.spawnItem(Item.blockItem(dropType, getBlockName(dropType)), 1, new THREE.Vector3(hit.blockPos.x + 0.5, hit.blockPos.y + 0.5, hit.blockPos.z + 0.5));
+                        // Ore blocks drop material items instead of themselves
+                        const ORE_DROPS = {
+                            [BLOCKS.IRON_ORE]:    { subtype: 'iron_ingot', name: 'Iron Ingot' },
+                            [BLOCKS.GOLD_ORE]:    { subtype: 'gold_ingot', name: 'Gold Ingot' },
+                            [BLOCKS.CRYSTAL_ORE]: { subtype: 'diamond', name: 'Diamond' },
+                            [BLOCKS.DIAMOND_ORE]: { subtype: 'diamond', name: 'Diamond' },
+                            [BLOCKS.MANA_ORE]:    { subtype: 'mana_crystal', name: 'Mana Crystal' },
+                            [BLOCKS.COAL_ORE]:    { subtype: 'coal', name: 'Coal' },
+                        };
+                        const oreDrop = ORE_DROPS[blockType];
+                        if (oreDrop) {
+                            const matItem = new Item('material', oreDrop.subtype, {}, oreDrop.name);
+                            matItem.stackable = true;
+                            matItem.maxStack = 64;
+                            this.entityManager.spawnItem(matItem, 1, new THREE.Vector3(hit.blockPos.x + 0.5, hit.blockPos.y + 0.5, hit.blockPos.z + 0.5));
+                        } else {
+                            const dropType = props.drops !== undefined && props.drops !== null ? props.drops : blockType;
+                            this.entityManager.spawnItem(Item.blockItem(dropType, getBlockName(dropType)), 1, new THREE.Vector3(hit.blockPos.x + 0.5, hit.blockPos.y + 0.5, hit.blockPos.z + 0.5));
+                        }
                     }
 
                     this.audio.playBreak(blockType); // Pass blockType not position for break since playBreak doesn't take position yet, wait playBreak doesn't take position in audio.js. Let's leave it.
@@ -596,7 +639,8 @@ class Game {
         }
         this.particles.update(dt);
         this.cloudSystem.update(dt, this.engine.camera.position);
-        this.entityManager.update(dt, this.world, this.player.position, this.player.inventory, this.player);
+        this.entityManager.update(dt, this.world, this.player.position, this.player.inventory, this.player, this.lighting.timeOfDay);
+
         const _tempVec3 = new THREE.Vector3();
         
         this.projectileManager.update(dt, (proj) => {

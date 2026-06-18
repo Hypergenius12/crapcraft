@@ -263,10 +263,12 @@ export function generateChunkTerrain(cx, cz, params) {
                         if (c > params.caveThreshold) type = BLOCKS.AIR;
                     }
                     
-                    if (type === BLOCKS.STONE && colRng() < 0.02) {
-                        if (y < 20 && colRng() < 0.2) type = BLOCKS.CRYSTAL_ORE;
+                    if (type === BLOCKS.STONE && colRng() < 0.04) {
+                        if (y < 15 && colRng() < 0.15) type = BLOCKS.DIAMOND_ORE;
+                        else if (y < 20 && colRng() < 0.2) type = BLOCKS.CRYSTAL_ORE;
                         else if (y < 30 && colRng() < 0.3) type = BLOCKS.MANA_ORE;
                         else if (colRng() < 0.1) type = BLOCKS.GOLD_ORE;
+                        else if (colRng() < 0.3) type = BLOCKS.COAL_ORE;
                         else type = BLOCKS.IRON_ORE;
                     }
                 } else if (y <= surfaceY) {

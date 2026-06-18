@@ -253,3 +253,32 @@
     z-index: 50;
     pointer-events: none;
 }
+
+/* ============================================
+   Crafting
+   ============================================ */
+.crafting-col {
+    display: flex;
+    flex-direction: column;
+    padding-left: 20px;
+    border-left: 1px solid #444;
+    min-width: 160px;
+}
+
+.crafting-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 50px);
+    grid-template-rows: repeat(2, 50px);
+    gap: 5px;
+}
+
+.crafting-output {
+    width: 60px;
+    height: 60px;
+    border: 2px solid #7c5cff;
+    background: rgba(124, 92, 255, 0.1);
+}
+
+.crafting-output:hover {
+    background: rgba(124, 92, 255, 0.25);
+}

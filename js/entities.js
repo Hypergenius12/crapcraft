@@ -1074,6 +1074,35 @@ export class ItemEntity {
                 const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
                 this.mesh = new THREE.Sprite(mat);
                 this.mesh.scale.set(0.4, 0.4, 0.4);
+            } else if (this.item.type === 'material' || this.item.type === 'equipment' || this.item.type === 'wand' || this.item.type === 'spell') {
+                const cvs = document.createElement('canvas');
+                cvs.width = 64; cvs.height = 64;
+                const ctx = cvs.getContext('2d');
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let emoji = '❓';
+                if (this.item.type === 'material') {
+                    const MATERIAL_ICONS = {
+                        iron_ingot: '🔩', gold_ingot: '✨', diamond: '💎',
+                        coal: '⬛', mana_crystal: '🔷', stick: '🪵'
+                    };
+                    emoji = MATERIAL_ICONS[this.item.subtype] || '❓';
+                } else if (this.item.type === 'equipment') {
+                    const EQUIP_ICONS = { head: '🪖', chest: '👕', legs: '👖', boots: '🥾', pickaxe: '⛏️', axe: '🪓', sword: '🗡️' };
+                    emoji = EQUIP_ICONS[this.item.subtype] || '❓';
+                } else if (this.item.type === 'wand') {
+                    emoji = '🪄';
+                } else if (this.item.type === 'spell') {
+                    emoji = '✨';
+                }
+                ctx.fillText(emoji, 32, 35);
+                const tex = new THREE.CanvasTexture(cvs);
+                tex.magFilter = THREE.NearestFilter;
+                tex.colorSpace = THREE.SRGBColorSpace;
+                const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+                this.mesh = new THREE.Sprite(mat);
+                this.mesh.scale.set(0.4, 0.4, 0.4);
             } else {
                 const geo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
                 const mat = new THREE.MeshBasicMaterial({ color: 0xffaa00 }); // generic item color
@@ -1469,7 +1498,9 @@ export class EntityManager {
         this.scene.add(iEntity.getMesh());
     }
 
-    update(dt, world, playerPos, playerInventory, player) {
+    update(dt, world, playerPos, playerInventory, player, timeOfDay = 0.5) {
+        // Day: 0.25 to 0.75. Night: 0.75-1.0 and 0.0-0.25
+        const isDay = timeOfDay >= 0.25 && timeOfDay <= 0.75;
         // Boss spawner detection
         this.bossScanTimer = (this.bossScanTimer || 0) + dt;
         if (this.bossScanTimer > 2.0) {
@@ -1520,7 +1551,12 @@ export class EntityManager {
                                 type = pickRandomMobType();
                             }
                         }
+                // Only allow hostile surface spawns at night
                         const config = MOB_TYPES[type];
+                        // Check if mob is hostile by checking if it has damage
+                        const isHostile = (config.damage || 0) > 0;
+                        if (isHostile && isDay && !config.flying && !config.waterOnly) break; // Skip surface hostiles during day
+
                         let spawnY = y + 2;
                         if (config.flying) spawnY = y + 5 + Math.random() * 10;
                         if (config.waterOnly) spawnY = y - 1 - Math.random() * 3;
