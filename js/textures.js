@@ -379,17 +379,31 @@ function generateBlockTexture(ctx, blockType, face, rng) {
             break;
         case BLOCKS.LEAVES:
             ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
-            fillBase(ctx, 40, 100, 30);
-            addNoise(ctx, rng, 30);
-            // Large clear rects for transparency
-            for (let i = 0; i < 70; i++) {
+            fillBase(ctx, 25, 80, 20); // Darker base green
+            addNoise(ctx, rng, 20);
+            
+            // Random leafy clusters
+            for (let i = 0; i < 80; i++) {
                 const x = (rng() * TEX_SIZE) | 0;
                 const y = (rng() * TEX_SIZE) | 0;
-                ctx.clearRect(x, y, 2, 2);
+                const shade = rng();
+                if (shade < 0.3) {
+                    ctx.fillStyle = 'rgba(15, 60, 15, 0.9)'; // deep shadow
+                } else if (shade < 0.6) {
+                    ctx.fillStyle = 'rgba(50, 120, 35, 0.9)'; // midtone
+                } else {
+                    ctx.fillStyle = 'rgba(80, 160, 50, 0.9)'; // highlight
+                }
+                const w = 1 + (rng() * 2) | 0;
+                const h = 1 + (rng() * 2) | 0;
+                ctx.fillRect(x, y, w, h);
             }
-            ctx.fillStyle = 'rgba(70, 140, 50, 0.9)';
+            
+            // Very small transparent gaps (makes it dense but still slightly see-through)
             for (let i = 0; i < 40; i++) {
-                ctx.fillRect((rng() * TEX_SIZE) | 0, (rng() * TEX_SIZE) | 0, 1, 1);
+                const x = (rng() * TEX_SIZE) | 0;
+                const y = (rng() * TEX_SIZE) | 0;
+                ctx.clearRect(x, y, 1, 1);
             }
             break;
         case BLOCKS.PLANKS:

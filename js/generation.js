@@ -374,12 +374,33 @@ function generateTree(blocks, x, y, z, biome, rng) {
     else if (biome.isOasis) { trunkType = BLOCKS.PALM_WOOD; leafType = BLOCKS.PALM_LEAVES; }
     
     const isJungle = biome.jungleFlora;
-    const height = (isJungle ? 8 : (isSavanna ? 5 : 4)) + Math.floor(rng() * (isJungle ? 6 : 3));
+    const isPine = biome.name === 'Tundra' || biome.name === 'Ice Spikes' || biome.name === 'Mountains';
+    const isCherry = biome.isCherry;
     
-    for (let i = 0; i < height; i++) {
-        safeSetBlock(blocks, x, y + i, z, trunkType);
+    // Height generation
+    let height = 4 + Math.floor(rng() * 3);
+    if (isJungle) height = 12 + Math.floor(rng() * 8);
+    else if (isPine) height = 7 + Math.floor(rng() * 5);
+    else if (isSavanna) height = 6 + Math.floor(rng() * 3);
+    else if (isCherry) height = 5 + Math.floor(rng() * 3);
+
+    // Trunk generation
+    if (isJungle) {
+        // Massive 2x2 trunk for jungle
+        for (let i = 0; i < height; i++) {
+            safeSetBlock(blocks, x, y + i, z, trunkType);
+            safeSetBlock(blocks, x+1, y + i, z, trunkType);
+            safeSetBlock(blocks, x, y + i, z+1, trunkType);
+            safeSetBlock(blocks, x+1, y + i, z+1, trunkType);
+        }
+    } else {
+        // Normal 1x1 trunk
+        for (let i = 0; i < height; i++) {
+            safeSetBlock(blocks, x, y + i, z, trunkType);
+        }
     }
     
+    // Canopy Generation based on tree type
     if (biome.isOasis) {
         // Simple Palm Tree top
         safeSetBlock(blocks, x, y + height, z, leafType, true);
@@ -393,25 +414,90 @@ function generateTree(blocks, x, y, z, biome, rng) {
         safeSetBlock(blocks, x-2, y + height - 1, z, leafType, true);
         safeSetBlock(blocks, x, y + height - 1, z+2, leafType, true);
         safeSetBlock(blocks, x, y + height - 1, z-2, leafType, true);
-        return;
-    }
-    
-    // Minecraft-style Oak Tree Canopy (Organic)
-    for (let ly = y + height - 2; ly <= y + height - 1; ly++) {
-        for (let lx = x - 2; lx <= x + 2; lx++) {
-            for (let lz = z - 2; lz <= z + 2; lz++) {
-                if (Math.abs(lx - x) === 2 && Math.abs(lz - z) === 2) continue;
-                if (rng() < 0.15) continue; // jitter leaves
-                safeSetBlock(blocks, lx, ly, lz, leafType, true);
+    } 
+    else if (isPine) {
+        // Cone shaped pine tree
+        const topY = y + height + 2;
+        for (let ly = y + 3; ly <= topY; ly++) {
+            const radius = Math.max(1, Math.floor((topY - ly) / 2) + 1);
+            if (ly === topY) {
+                safeSetBlock(blocks, x, ly, z, leafType, true);
+                continue;
+            }
+            for (let lx = x - radius; lx <= x + radius; lx++) {
+                for (let lz = z - radius; lz <= z + radius; lz++) {
+                    if (Math.abs(lx - x) === radius && Math.abs(lz - z) === radius && rng() < 0.5) continue;
+                    safeSetBlock(blocks, lx, ly, lz, leafType, true);
+                }
             }
         }
     }
-    for (let ly = y + height; ly <= y + height + 1; ly++) {
-        for (let lx = x - 1; lx <= x + 1; lx++) {
-            for (let lz = z - 1; lz <= z + 1; lz++) {
-                if (ly === y + height + 1 && Math.abs(lx - x) === 1 && Math.abs(lz - z) === 1) continue;
-                if (ly === y + height + 1 && rng() < 0.3) continue; // thinner top layer
-                safeSetBlock(blocks, lx, ly, lz, leafType, true);
+    else if (isJungle) {
+        // Massive sprawling canopy
+        for (let ly = y + height - 4; ly <= y + height + 1; ly++) {
+            const radius = ly > y + height - 1 ? 3 : 5;
+            for (let lx = x - radius; lx <= x + radius + 1; lx++) {
+                for (let lz = z - radius; lz <= z + radius + 1; lz++) {
+                    if (Math.abs(lx - x - 0.5) + Math.abs(lz - z - 0.5) > radius + 1) continue;
+                    if (rng() < 0.2) continue;
+                    safeSetBlock(blocks, lx, ly, lz, leafType, true);
+                }
+            }
+        }
+    }
+    else if (isSavanna) {
+        // Flat top acacia
+        const branchDirX = rng() > 0.5 ? 1 : -1;
+        const branchDirZ = rng() > 0.5 ? 1 : -1;
+        const bx = x + branchDirX * 2;
+        const bz = z + branchDirZ * 2;
+        const by = y + height;
+        // Diagonal branch
+        safeSetBlock(blocks, x + branchDirX, y + height - 2, z + branchDirZ, trunkType);
+        safeSetBlock(blocks, bx, y + height - 1, bz, trunkType);
+        safeSetBlock(blocks, bx, by, bz, trunkType);
+        
+        // Flat canopy
+        for (let ly = by; ly <= by + 1; ly++) {
+            const radius = ly === by ? 3 : 2;
+            for (let lx = bx - radius; lx <= bx + radius; lx++) {
+                for (let lz = bz - radius; lz <= bz + radius; lz++) {
+                    if (Math.abs(lx - bx) === radius && Math.abs(lz - bz) === radius) continue;
+                    safeSetBlock(blocks, lx, ly, lz, leafType, true);
+                }
+            }
+        }
+    }
+    else if (isCherry) {
+        // Wide, spherical canopy
+        for (let ly = y + height - 2; ly <= y + height + 2; ly++) {
+            const radius = ly === y + height ? 4 : (ly === y + height + 2 || ly === y + height - 2 ? 2 : 3);
+            for (let lx = x - radius; lx <= x + radius; lx++) {
+                for (let lz = z - radius; lz <= z + radius; lz++) {
+                    if (Math.abs(lx - x) === radius && Math.abs(lz - z) === radius && rng() < 0.7) continue;
+                    safeSetBlock(blocks, lx, ly, lz, leafType, true);
+                }
+            }
+        }
+    }
+    else {
+        // Default Minecraft-style Oak Tree Canopy
+        for (let ly = y + height - 2; ly <= y + height - 1; ly++) {
+            for (let lx = x - 2; lx <= x + 2; lx++) {
+                for (let lz = z - 2; lz <= z + 2; lz++) {
+                    if (Math.abs(lx - x) === 2 && Math.abs(lz - z) === 2) continue;
+                    if (rng() < 0.15) continue; // jitter leaves
+                    safeSetBlock(blocks, lx, ly, lz, leafType, true);
+                }
+            }
+        }
+        for (let ly = y + height; ly <= y + height + 1; ly++) {
+            for (let lx = x - 1; lx <= x + 1; lx++) {
+                for (let lz = z - 1; lz <= z + 1; lz++) {
+                    if (ly === y + height + 1 && Math.abs(lx - x) === 1 && Math.abs(lz - z) === 1) continue;
+                    if (ly === y + height + 1 && rng() < 0.3) continue; // thinner top layer
+                    safeSetBlock(blocks, lx, ly, lz, leafType, true);
+                }
             }
         }
     }

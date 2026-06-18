@@ -460,6 +460,16 @@ class UISystem {
                 // Swap spell back to inventory if present, else empty src
                 if (targetSpell) inv[srcIndex] = { item: targetSpell, count: 1 };
                 else inv[srcIndex] = null;
+            } else if (itemData.item.type === 'modifier') {
+                const targetSpell = wand.spellSlots[targetIndex];
+                if (targetSpell && targetSpell.addModifier) {
+                    const success = targetSpell.addModifier(itemData.item);
+                    if (success) {
+                        inv[srcIndex].count -= 1;
+                        if (inv[srcIndex].count <= 0) inv[srcIndex] = null;
+                        this.renderWandConfig(this.currentPlayer.inventory.slots[this.currentPlayer.selectedSlot].item);
+                    }
+                }
             }
         }
         else if (srcType === 'wand' && targetType === 'inventory') {
