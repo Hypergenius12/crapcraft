@@ -397,12 +397,11 @@ class UISystem {
 
     // --- Drag & Drop ---
     onSlotMouseDown(e, type, index) {
-        if (!this.isOpen || e.button !== 0) return;
+        if (!this.isOpen || (e.button !== 0 && e.button !== 2)) return;
         let slot = null;
         if (type === 'inventory') slot = this.currentPlayer.inventory.slots[index];
         else if (type === 'crafting') slot = this.craftingSlots[index];
         else if (type === 'crafting_output') {
-            // Clicking output: collect if recipe matches
             const result = this._matchRecipe();
             if (result) {
                 this._consumeCraftingSlots();
@@ -422,16 +421,32 @@ class UISystem {
             this.dragState.isDragging = true;
             this.dragState.sourceType = type;
             this.dragState.sourceIndex = index;
-            this.dragState.itemData = slot;
+
+            if (e.button === 2 && slot.item.stackable && slot.count > 1) {
+                const dragCount = Math.floor(slot.count / 2);
+                slot.count -= dragCount;
+                this.dragState.itemData = { item: slot.item, count: dragCount };
+                this.dragState.isSplit = true;
+            } else {
+                this.dragState.itemData = slot;
+                this.dragState.isSplit = false;
+                // If not split, temporarily clear the source slot so it doesn't render while dragging
+                if (type === 'inventory') this.currentPlayer.inventory.slots[index] = null;
+                else if (type === 'crafting') this.craftingSlots[index] = null;
+                else if (type === 'armor') this.currentPlayer.inventory.armor[index] = null;
+            }
             
-            // Set up drag icon
+            this._updateInventory();
+            this._updateCraftingSlots();
+            this._updateArmorSlots();
+            
             const el = e.currentTarget;
             const rect = el.getBoundingClientRect();
             this.dragState.offsetX = e.clientX - rect.left - rect.width/2;
             this.dragState.offsetY = e.clientY - rect.top - rect.height/2;
             
             this.elements.dragIcon.classList.remove('hidden');
-            this.renderSlotItem(this.elements.dragIcon, slot);
+            this.renderSlotItem(this.elements.dragIcon, this.dragState.itemData);
             this.updateDragIconPos(e.clientX, e.clientY);
             this.elements.tooltip.classList.add('hidden');
         }
@@ -463,9 +478,35 @@ class UISystem {
     }
 
     cancelDrag() {
+        if (this.dragState.isDragging && this.dragState.itemData) {
+            // Return item to source
+            const srcType = this.dragState.sourceType;
+            const srcIndex = this.dragState.sourceIndex;
+            const itemData = this.dragState.itemData;
+            
+            if (srcType === 'inventory') {
+                if (this.dragState.isSplit) {
+                    this.currentPlayer.inventory.slots[srcIndex].count += itemData.count;
+                } else {
+                    this.currentPlayer.inventory.slots[srcIndex] = itemData;
+                }
+            } else if (srcType === 'crafting') {
+                if (this.dragState.isSplit) {
+                    this.craftingSlots[srcIndex].count += itemData.count;
+                } else {
+                    this.craftingSlots[srcIndex] = itemData;
+                }
+            } else if (srcType === 'armor') {
+                this.currentPlayer.inventory.armor[srcIndex] = itemData;
+            }
+            this._updateInventory();
+            this._updateCraftingSlots();
+            this._updateArmorSlots();
+        }
         this.dragState.isDragging = false;
         this.elements.dragIcon.classList.add('hidden');
         this.dragState.itemData = null;
+        this.dragState.isSplit = false;
     }
 
     onSlotMouseUp(e, targetType, targetIndex) {
