@@ -143,9 +143,14 @@ export class Player {
 
         // Jumping
         if (keys.jump) {
-            if (this.grounded || inWater || inLava) {
-                this.velocity.y = jumpForce;
+            if (this.grounded) {
+                this.velocity.y = 9; // Normal jump force for regular ground
                 this.grounded = false;
+            } else if (inWater || inLava) {
+                // Minecraft-style liquid swimming: apply upward acceleration instead of instant snap
+                this.velocity.y += 18 * dt;
+                // Cap upward velocity so we don't shoot out of the water like a rocket
+                if (this.velocity.y > 4.5) this.velocity.y = 4.5;
             } else {
                 const blockInProps = getBlockProperties(blockIn);
                 if (blockInProps && blockInProps.solid) {
@@ -929,7 +934,7 @@ export const MOB_TYPES = {
             if (fl4) fl4.rotation.y = swing;
             if (head) head.rotation.y = Math.sin(age * 2) * 0.1;
         }
-    }
+    },
     BIRD: {
         name: 'Bird', health: 5, damage: 0, speed: 4, hostile: false, color: 0x33aaee,
         size: 0.3, xpDrop: 2, lootChance: 0.1, flying: true,
