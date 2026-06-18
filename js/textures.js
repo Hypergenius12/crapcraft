@@ -245,9 +245,16 @@ function generateBlockTexture(ctx, blockType, face, rng) {
                 addPixels(ctx, rng, 'rgba(90, 130, 50, 0.8)', 20);
                 addPixels(ctx, rng, 'rgba(130, 180, 80, 0.8)', 15);
             } else if (face === 'bottom') {
-                fillBase(ctx, 134, 96, 67);
-                addNoise(ctx, rng, 20);
-                addPixels(ctx, rng, 'rgba(100, 70, 45, 0.6)', 15);
+                const id = ctx.createImageData(TEX_SIZE, TEX_SIZE);
+                for (let i = 0; i < id.data.length; i += 4) {
+                    let r = 114, g = 80, b = 56;
+                    const noise = (rng() - 0.5) * 35;
+                    id.data[i] = Math.min(255, Math.max(0, r + noise));
+                    id.data[i+1] = Math.min(255, Math.max(0, g + noise));
+                    id.data[i+2] = Math.min(255, Math.max(0, b + noise));
+                    id.data[i+3] = 255;
+                }
+                ctx.putImageData(id, 0, 0);
             } else {
                 // Exact Grass Side Mask (classic pattern)
                 const grassMask = [
@@ -307,10 +314,16 @@ function generateBlockTexture(ctx, blockType, face, rng) {
             }
             break;
         case BLOCKS.DIRT:
-            fillBase(ctx, 134, 96, 67);
-            addNoise(ctx, rng, 20);
-            addPixels(ctx, rng, 'rgba(100, 70, 45, 0.7)', 30);
-            addPixels(ctx, rng, 'rgba(150, 110, 80, 0.5)', 20);
+            const dirtId = ctx.createImageData(TEX_SIZE, TEX_SIZE);
+            for (let i = 0; i < dirtId.data.length; i += 4) {
+                let r = 114, g = 80, b = 56;
+                const noise = (rng() - 0.5) * 35;
+                dirtId.data[i] = Math.min(255, Math.max(0, r + noise));
+                dirtId.data[i+1] = Math.min(255, Math.max(0, g + noise));
+                dirtId.data[i+2] = Math.min(255, Math.max(0, b + noise));
+                dirtId.data[i+3] = 255;
+            }
+            ctx.putImageData(dirtId, 0, 0);
             break;
         case BLOCKS.STONE:
             fillBase(ctx, 125, 125, 125);
