@@ -925,7 +925,8 @@ class Game {
                 const bx = Math.floor(this.player.position.x);
                 const by = Math.floor(this.player.position.y);
                 const bz = Math.floor(this.player.position.z);
-                const biome = this.world.getBiomeAt(bx, bz)?.name || 'Unknown';
+                const b = this.world.getBiomeAt(bx, bz);
+                const biome = b ? b.name : 'Unknown';
                 
                 const lookDir = this.player.getLookDirection();
                 const eyePos = this.player.getEyePosition();
