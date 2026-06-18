@@ -75,11 +75,8 @@ class ChestVisual {
     }
 
     update(dt) {
-        const safeDt = Math.max(0.001, Math.min(dt, 0.1));
         this.targetAngle = this.isOpen ? -Math.PI / 2.5 : 0;
-        const diff = this.targetAngle - this.lidAngle;
-        this.lidAngle += diff * Math.min(10 * safeDt, 1.0);
-        if (Math.abs(this.lidAngle - this.targetAngle) < 0.01) this.lidAngle = this.targetAngle;
+        this.lidAngle += (this.targetAngle - this.lidAngle) * 10 * dt;
         this.lidMesh.rotation.x = this.lidAngle;
     }
 
@@ -112,6 +109,9 @@ class Game {
     }
 
     start() {
+        if (this.hasStarted) return;
+        this.hasStarted = true;
+
         const canvas = document.getElementById('game-canvas');
         this.engine.init(canvas);
 
@@ -928,8 +928,7 @@ class Game {
                 const bx = Math.floor(this.player.position.x);
                 const by = Math.floor(this.player.position.y);
                 const bz = Math.floor(this.player.position.z);
-                const b = this.world.getBiomeAt(bx, bz);
-                const biome = b ? b.name : 'Unknown';
+                const biome = this.world.getBiomeAt(bx, bz)?.name || 'Unknown';
                 
                 const lookDir = this.player.getLookDirection();
                 const eyePos = this.player.getEyePosition();
@@ -1005,16 +1004,15 @@ Chunks: ${this.world.chunks.size} | Mobs: ${this.entityManager.mobs.length} | Re
 }
 
 // Start game on load
-const game = new Game(); 
-window.game = game;
-
-// Setup button listeners after DOM is parsed (modules run deferred anyway)
-const startBtn = document.getElementById('btn-new-game');
-if (startBtn) {
-    startBtn.onclick = () => {
-        document.getElementById('start-screen').classList.add('hidden');
-        game.start();
-    };
-} else {
-    game.start(); // fallback if no button
-}
+window.onload = () => {
+    const game = new Game();
+    const startBtn = document.getElementById('btn-new-game');
+    if (startBtn) {
+        startBtn.onclick = () => {
+            document.getElementById('start-screen').classList.add('hidden');
+            game.start();
+        };
+    } else {
+        game.start(); // fallback if no button
+    }
+};

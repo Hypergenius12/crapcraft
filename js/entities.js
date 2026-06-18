@@ -85,6 +85,7 @@ export class Player {
         this.width = 0.6;
         this.height = 1.8;
         this.eyeHeight = 1.62;
+        this.speedMult = 1.0;
 
         // Give starting items
         const starterWand = generateRandomWand();
@@ -115,12 +116,6 @@ export class Player {
         this.rotation.yaw -= mouse.dx * sensitivity;
         this.rotation.pitch -= mouse.dy * sensitivity;
         this.rotation.pitch = Math.max(-Math.PI/2 + 0.01, Math.min(Math.PI/2 - 0.01, this.rotation.pitch));
-
-        // Ensure the chunk the player is currently in is loaded. If not, suspend physics so they don't fall into the void
-        const chunk = world.getChunkAt(this.position.x, this.position.z);
-        if (!chunk || !chunk.blocks) {
-            return;
-        }
 
         // Direction vectors
         const forward = new THREE.Vector3(-Math.sin(this.rotation.yaw), 0, -Math.cos(this.rotation.yaw)).normalize();
