@@ -2,7 +2,7 @@
 // systems.js — Lighting, Particles, Audio, UI
 // ============================================
 import * as THREE from 'three';
-import { BLOCKS } from './textures.js';
+import { BLOCKS, generateItemTexture } from './textures.js';
 
 export class LightingSystem {
     constructor(scene) {
@@ -363,28 +363,17 @@ class UISystem {
                 const dataURL = iconCanvas.toDataURL();
                 inner = `<img src="${dataURL}" class="item-icon" draggable="false" />`;
             } else if (slot.item.type === 'wand') {
-                inner = `<div style="text-align:center; line-height:100%; font-size:30px;">🪄</div>`;
+                const cvs = generateItemTexture('wand', slot.item.subtype || 'wand_basic');
+                inner = `<img src="${cvs.toDataURL()}" class="item-icon" draggable="false" style="image-rendering: pixelated; width: 100%; height: 100%;" />`;
             } else if (slot.item.type === 'spell') {
-                const colorHex = '#' + slot.item.data.spell.color.toString(16).padStart(6, '0');
-                inner = `<div style="width:100%; height:100%; background:${colorHex}; border-radius:50%; box-shadow: 0 0 10px ${colorHex} inset;">
-                    <div style="text-align:center; line-height:100%; font-size:24px; padding-top:10px;">✨</div>
-                </div>`;
+                const cvs = generateItemTexture('spell', slot.item.data.spell.element || 'spell_basic');
+                inner = `<img src="${cvs.toDataURL()}" class="item-icon" draggable="false" style="image-rendering: pixelated; width: 100%; height: 100%;" />`;
             } else if (slot.item.type === 'material') {
-                const MATERIAL_ICONS = {
-                    iron_ingot: '🔩', gold_ingot: '✨', diamond: '💎',
-                    coal: '⬛', mana_crystal: '🔷', stick: '🪵',
-                    wand_basic: '🪄', wand_fire: '🔥', wand_ice: '❄️', wand_nature: '🌿',
-                };
-                const emoji = MATERIAL_ICONS[slot.item.subtype] || '❓';
-                inner = `<div style="text-align:center;line-height:50px;font-size:22px;">${emoji}</div>`;
+                const cvs = generateItemTexture('material', slot.item.subtype);
+                inner = `<img src="${cvs.toDataURL()}" class="item-icon" draggable="false" style="image-rendering: pixelated; width: 100%; height: 100%;" />`;
             } else if (slot.item.type === 'equipment') {
-                const EQUIP_ICONS = {
-                    head: '🪖', chest: '🥋', legs: '👖', boots: '👟',
-                    sword: '⚔️', pickaxe: '⛏️', axe: '🪓',
-                    wand_basic: '🪄', wand_fire: '🔥', wand_ice: '❄️', wand_nature: '🌿',
-                };
-                const emoji = EQUIP_ICONS[slot.item.subtype] || '🛡️';
-                inner = `<div style="text-align:center;line-height:50px;font-size:22px;">${emoji}</div>`;
+                const cvs = generateItemTexture('equipment', slot.item.subtype);
+                inner = `<img src="${cvs.toDataURL()}" class="item-icon" draggable="false" style="image-rendering: pixelated; width: 100%; height: 100%;" />`;
             } else {
                 inner = `<div style="text-align:center; line-height:100%;">${slot.item.name.substring(0,2).toUpperCase()}</div>`;
             }

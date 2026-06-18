@@ -1275,3 +1275,327 @@ export function createTextureAtlas() {
 
     return { texture, getUV, atlasW, atlasH, totalRows, getBlockIcon, updateAnimatedTextures };
 }
+
+// ----------------------------------------------------
+// Procedural Item Pixel Art Generator
+// ----------------------------------------------------
+export function generateItemTexture(itemType, itemSubtype) {
+    const TEX_SIZE = 16;
+    const canvas = document.createElement('canvas');
+    canvas.width = TEX_SIZE;
+    canvas.height = TEX_SIZE;
+    const ctx = canvas.getContext('2d');
+    
+    // Clear transparent
+    ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
+
+    const palettes = {
+        'wood': { c: '#8d6e63', d: '#5d4037', h: '#a1887f' },
+        'stone': { c: '#9e9e9e', d: '#616161', h: '#e0e0e0' },
+        'iron_ingot': { c: '#e0e0e0', d: '#9e9e9e', h: '#ffffff' },
+        'gold_ingot': { c: '#fbc02d', d: '#f57f17', h: '#fff176' },
+        'diamond': { c: '#00bcd4', d: '#00838f', h: '#84ffff' },
+        'coal': { c: '#212121', d: '#000000', h: '#424242' },
+        'mana_crystal': { c: '#03a9f4', d: '#01579b', h: '#b3e5fc' },
+        'stick': { c: '#795548', d: '#4e342e', h: '#a1887f' },
+        'wand_basic': { c: '#795548', d: '#4e342e', g: '#e0e0e0' },
+        'wand_fire': { c: '#795548', d: '#4e342e', g: '#ff3d00' },
+        'wand_ice': { c: '#795548', d: '#4e342e', g: '#00b0ff' },
+        'wand_nature': { c: '#795548', d: '#4e342e', g: '#00e676' },
+        'spell_fire': { c: '#ff3d00', d: '#dd2c00', h: '#ff9e80' },
+        'spell_ice': { c: '#00b0ff', d: '#0091ea', h: '#80d8ff' },
+        'spell_nature': { c: '#00e676', d: '#00c853', h: '#b9f6ca' },
+        'spell_basic': { c: '#e0e0e0', d: '#9e9e9e', h: '#ffffff' }
+    };
+
+    // Helper to determine material tier from subtype
+    let matName = 'iron_ingot';
+    if (itemSubtype.includes('wood')) matName = 'wood';
+    if (itemSubtype.includes('stone') || itemSubtype.includes('cobble')) matName = 'stone';
+    if (itemSubtype.includes('iron')) matName = 'iron_ingot';
+    if (itemSubtype.includes('gold')) matName = 'gold_ingot';
+    if (itemSubtype.includes('diamond')) matName = 'diamond';
+
+    let p = palettes[matName] || palettes['iron_ingot'];
+    
+    // Override palette for specific material items
+    if (itemType === 'material') {
+        p = palettes[itemSubtype] || p;
+    } else if (itemType === 'wand') {
+        p = palettes[itemSubtype] || palettes['wand_basic'];
+    }
+
+    const drawGrid = (grid) => {
+        for (let y = 0; y < grid.length; y++) {
+            const row = grid[y];
+            for (let x = 0; x < row.length; x++) {
+                const char = row[x];
+                if (char === ' ') continue;
+                if (char === 'C') ctx.fillStyle = p.c; // core
+                else if (char === 'D') ctx.fillStyle = p.d; // dark
+                else if (char === 'H') ctx.fillStyle = p.h; // highlight
+                else if (char === 'S') ctx.fillStyle = palettes.stick.c; // stick
+                else if (char === 'T') ctx.fillStyle = palettes.stick.d; // stick dark
+                else if (char === 'G') ctx.fillStyle = p.g || p.h; // glow/gem
+                else if (char === 'B') ctx.fillStyle = '#000000'; // black border
+                else if (char === 'O') ctx.fillStyle = '#222222'; // outline
+                else continue;
+                ctx.fillRect(x, y, 1, 1);
+            }
+        }
+    };
+
+    let shape = [];
+
+    if (itemType === 'equipment') {
+        if (itemSubtype === 'sword') {
+            shape = [
+                "            OBO ",
+                "           OBHBO",
+                "          OBHCBO",
+                "         OBHCBO ",
+                "        OBHCBO  ",
+                "       OBHCBO   ",
+                "      OBHCBO    ",
+                "     OBHCBO     ",
+                "  OOOBHCBO      ",
+                " OSSDDCBO       ",
+                "OSSSSDOO        ",
+                "OSSSDSO         ",
+                " OODOO          ",
+                " OOO            ",
+                "                ",
+                "                "
+            ];
+        } else if (itemSubtype === 'pickaxe') {
+            shape = [
+                "      OOOOOO    ",
+                "    OOOBHHHDOO  ",
+                "  OOBHCBCCCCDDO ",
+                "  OBCBOOOOOSSDO ",
+                "  ODO     OSSO  ",
+                "  OO      OSSO  ",
+                "         OSSO   ",
+                "         OSSO   ",
+                "        OSSO    ",
+                "        OSSO    ",
+                "       OSSO     ",
+                "       OSSO     ",
+                "      OSSO      ",
+                "      OSSO      ",
+                "       OO       ",
+                "                "
+            ];
+        } else if (itemSubtype === 'axe') {
+            shape = [
+                "     OOOO       ",
+                "    OBHHDO      ",
+                "   OBHCCDDO     ",
+                "   OBCCOSDO     ",
+                "   OBCOSSO      ",
+                "   ODOSSO       ",
+                "   OOSSO        ",
+                "    OSSO        ",
+                "    OSSO        ",
+                "   OSSO         ",
+                "   OSSO         ",
+                "  OSSO          ",
+                "  OSSO          ",
+                "   OO           ",
+                "                ",
+                "                "
+            ];
+        } else if (itemSubtype === 'head') {
+            shape = [
+                "                ",
+                "   OOOOOOOOOO   ",
+                "  OOHHHHHHHHDO  ",
+                "  OHCCCCCCCCDO  ",
+                " OHCCOOOOAOCDDO ",
+                " OHCO     AOCDO ",
+                " OHD       ADOO ",
+                " OHO       AOO  ",
+                " OOO       AA   ",
+                "                ",
+                "                ",
+                "                ",
+                "                ",
+                "                ",
+                "                ",
+                "                "
+            ];
+        } else if (itemSubtype === 'chest') {
+            shape = [
+                "   OO      OO   ",
+                "  OHDO    OHDO  ",
+                " OHCCOOOOOCCCDO ",
+                " OHCCHHHHHHCDDO ",
+                " OHCCCCCCCCCDDO ",
+                " OHCCOOOOAOCDDO ",
+                " OHD      AODDO ",
+                " OHO OOOOAO ODO ",
+                " OOO OHCCDO OOO ",
+                "     OHCCDO     ",
+                "     OHCCDO     ",
+                "     ODDDDO     ",
+                "      OOOO      ",
+                "                ",
+                "                ",
+                "                "
+            ];
+        } else if (itemSubtype === 'legs') {
+            shape = [
+                "                ",
+                "  OOOOOOOOOOOO  ",
+                " OOHHHHHHHHHHDO ",
+                " OHCCCCCCCCCDDO ",
+                " OHCCCCCCCCCDDO ",
+                " OHCCCCDDCCCCDO ",
+                " OHCDDOAOHCCDDO ",
+                " OHDO  AO ODCDO ",
+                " OHO   AO  ODOO ",
+                " OHO   AO  ODOO ",
+                " OHO   AO  ODOO ",
+                " OHO   AO  ODOO ",
+                " OHO   AO  ODOO ",
+                " OOO   AO  OOOO ",
+                "                ",
+                "                "
+            ];
+        } else if (itemSubtype === 'boots') {
+            shape = [
+                "                ",
+                "                ",
+                "                ",
+                "                ",
+                "                ",
+                "                ",
+                "                ",
+                " OOOO      OOOO ",
+                " OHCO      OHCO ",
+                " OHDO      OHDO ",
+                " OHDO      OHDO ",
+                " OHDO      OHDO ",
+                " OHCDOOOO OHCDDO",
+                " ODDDDDDO ODDDDD",
+                " OOOOOOOO OOOOOO",
+                "                "
+            ];
+        }
+    } else if (itemType === 'material') {
+        if (itemSubtype === 'coal' || itemSubtype === 'diamond' || itemSubtype === 'mana_crystal') {
+            shape = [
+                "                ",
+                "      OOOO      ",
+                "    OOOHHDOO    ",
+                "   OOHHCHCDDO   ",
+                "  OOHCCHCCCDDO  ",
+                "  OHCBBBBBCDDO  ",
+                " OHCBBBBBBCDDOO ",
+                " OHCBBBBBBCDDDO ",
+                " OHCBBBBBBCDDDO ",
+                " OOHCBBBBCDDDOO ",
+                "  OOHCCCCCDDDO  ",
+                "   OOHCCCDDDO   ",
+                "    OOODDDOO    ",
+                "      OOOO      ",
+                "                ",
+                "                "
+            ];
+        } else if (itemSubtype === 'iron_ingot' || itemSubtype === 'gold_ingot') {
+            shape = [
+                "                ",
+                "                ",
+                "                ",
+                "                ",
+                "                ",
+                "      OOOOOO    ",
+                "    OOOHHHHDOO  ",
+                "   OOHCCCCCCDDO ",
+                "  OOHCCCCCCCCDDO",
+                " OOHCCCCCCCCCDDO",
+                " OODDDDDDDDDDDDO",
+                "  OOOOOOOOOOOOO ",
+                "                ",
+                "                ",
+                "                ",
+                "                "
+            ];
+        } else if (itemSubtype === 'stick') {
+            shape = [
+                "            OO  ",
+                "           OHO  ",
+                "          OHDO  ",
+                "         OHDO   ",
+                "        OHDO    ",
+                "       OHDO     ",
+                "      OHDO      ",
+                "     OHDO       ",
+                "    OHDO        ",
+                "   OHDO         ",
+                "  OHDO          ",
+                "  ODO           ",
+                "  OO            ",
+                "                ",
+                "                ",
+                "                "
+            ];
+        }
+    } else if (itemType === 'wand') {
+        shape = [
+            "            OO  ",
+            "           OGGO ",
+            "          OGGGO ",
+            "         OHGGO  ",
+            "        OHDO    ",
+            "       OHDO     ",
+            "      OHDO      ",
+            "     OHDO       ",
+            "    OHDO        ",
+            "   OHDO         ",
+            "  OHDO          ",
+            "  ODO           ",
+            "  OO            ",
+            "                ",
+            "                ",
+            "                "
+        ];
+    } else if (itemType === 'spell') {
+        let sc = 'spell_basic';
+        if (itemSubtype === 'FIRE') sc = 'spell_fire';
+        if (itemSubtype === 'ICE') sc = 'spell_ice';
+        if (itemSubtype === 'HEAL') sc = 'spell_nature';
+        p = palettes[sc];
+        shape = [
+            "                ",
+            "      OOOO      ",
+            "    OOCHHDOO    ",
+            "   OCHHHHCDDO   ",
+            "  OCHHHHCCCCDO  ",
+            "  OHHHCCCCCCDO  ",
+            " OHHHCCCCCCCCDO ",
+            " OHHCCCCCCCCCDO ",
+            " OHHCCCCCCCCCDO ",
+            " OHCCCCCCCCCCDO ",
+            "  OCCCCCCCCDDO  ",
+            "  OCDDDDDDDCDO  ",
+            "   OODDDDDDOO   ",
+            "    OOOOOOOO    ",
+            "                ",
+            "                "
+        ];
+    }
+
+    if (shape.length > 0) {
+        drawGrid(shape);
+    } else {
+        // Fallback generic box
+        ctx.fillStyle = p.c || '#ff00ff';
+        ctx.fillRect(4, 4, 8, 8);
+        ctx.fillStyle = p.d || '#880088';
+        ctx.fillRect(4, 12, 8, 2);
+        ctx.fillRect(12, 4, 2, 10);
+    }
+
+    return canvas;
+}
