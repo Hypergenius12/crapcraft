@@ -472,10 +472,26 @@ class UISystem {
         else if (type === 'crafting_output') {
             const result = this._matchRecipe();
             if (result) {
-                this._consumeCraftingSlots();
-                this.currentPlayer.inventory.addItem(result.item, result.count);
-                this._updateCraftingSlots();
-                this._updateCraftingOutput();
+                // Prevent partial stack dupe by checking if we have space first
+                const inv = this.currentPlayer.inventory;
+                let space = 0;
+                if (result.item.stackable) {
+                    for (const s of inv.slots) {
+                        if (!s) space += result.item.maxStack;
+                        else if (s.item.type === result.item.type && s.item.subtype === result.item.subtype) {
+                            space += (s.item.maxStack - s.count);
+                        }
+                    }
+                } else {
+                    space = inv.slots.filter(s => !s).length;
+                }
+                
+                if (space >= result.count) {
+                    this._consumeCraftingSlots();
+                    inv.addItem(result.item, result.count);
+                    this._updateCraftingSlots();
+                    this._updateCraftingOutput();
+                }
             }
             return;
         } else if (type === 'armor') {
@@ -802,7 +818,16 @@ class UISystem {
             }
         }
 
-        this.cancelDrag();
+        // Drag successful, clean up without restoring
+        this.dragState.isDragging = false;
+        this.dragState.itemData = null;
+        this.dragState.isSplit = false;
+        this.elements.dragIcon.classList.add('hidden');
+
+        this._updateInventory();
+        this._updateCraftingSlots();
+        this._updateArmorSlots();
+        this._updateFurnaceSlots();
     }
 
     // --- Tooltips ---

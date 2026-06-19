@@ -106,9 +106,12 @@ export class Wand {
 
     cast(index, player) {
         if (index < 0 || index >= this.maxSlots) return null;
-        const spell = this.spellSlots[index];
-        if (!spell || this.cooldowns[index] > 0) return null;
+        let spellItem = this.spellSlots[index];
+        if (!spellItem || this.cooldowns[index] > 0) return null;
         
+        // Unwrap spell if it is an Item object
+        const spell = (spellItem.type === 'spell' && spellItem.data && spellItem.data.spell) ? spellItem.data.spell : spellItem;
+
         const stats = spell.getCalculatedStats();
         if (!player.useMana(stats.manaCost)) return null;
 
