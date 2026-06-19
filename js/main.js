@@ -947,8 +947,6 @@ class Game {
         const chunkGenFn = this.currentDimension === 'nether' ? generateNetherChunk : generateChunkTerrain;
         this.world.update(this.player.position, (cx, cz) => chunkGenFn(cx, cz, this.planetParams), dt);
 
-        this.input.update(dt);
-
         // Update Systems
         const headX = Math.floor(this.engine.camera.position.x);
         const headY = Math.floor(this.engine.camera.position.y);
