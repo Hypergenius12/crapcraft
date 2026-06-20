@@ -1075,19 +1075,34 @@ class UISystem {
 
         // --- Recipes ---
         // Planks: Shapeless 1 Wood => 4 planks
-        if (getCount(B.WOOD) === 1 && totalItems === 1) return block(B.PLANKS, 'Planks', 4);
-        if (getCount(B.ACACIA_WOOD) === 1 && totalItems === 1) return block(B.PLANKS, 'Planks', 4);
-        if (getCount(B.CHERRY_LOG) === 1 && totalItems === 1) return block(B.PLANKS, 'Planks', 4);
+        const woodToPlankMap = {
+            [B.WOOD]: { block: B.PLANKS, name: 'Planks' },
+            [B.ACACIA_WOOD]: { block: B.ACACIA_PLANKS, name: 'Acacia Planks' },
+            [B.CHERRY_LOG]: { block: B.CHERRY_PLANKS, name: 'Cherry Planks' },
+            [B.AUTUMN_WOOD]: { block: B.AUTUMN_PLANKS, name: 'Autumn Planks' },
+            [B.PALM_WOOD]: { block: B.PALM_PLANKS, name: 'Palm Planks' },
+            [B.PINE_WOOD]: { block: B.PINE_PLANKS, name: 'Pine Planks' },
+            [B.CRIMSON_STEM]: { block: B.CRIMSON_PLANKS, name: 'Crimson Planks' }
+        };
+        const woodType = s.find(x => x !== null && woodToPlankMap[x]);
+        if (woodType !== undefined && totalItems === 1) {
+            return block(woodToPlankMap[woodType].block, woodToPlankMap[woodType].name, 4);
+        }
 
         // Sticks: Shapeless 2 Planks
-        if (getCount(B.PLANKS) === 2 && totalItems === 2) return mat('stick', 'Stick', 4);
+        const isPlank = (t) => [B.PLANKS, B.ACACIA_PLANKS, B.CHERRY_PLANKS, B.AUTUMN_PLANKS, B.PALM_PLANKS, B.PINE_PLANKS, B.CRIMSON_PLANKS].includes(t);
+        const countAnyPlank = s.filter(x => x !== null && isPlank(x)).length;
+        if (countAnyPlank === 2 && totalItems === 2) return mat('stick', 'Stick', 4);
 
         // Torch: Shapeless 1 Coal + 1 Stick
         if (getCount('coal') === 1 && getCount('stick') === 1 && totalItems === 2) return block(B.TORCH, 'Torch', 4);
 
+        // Helper for matching either a specific material or ANY plank
+        const matchesMat = (t, expected) => expected === B.PLANKS ? isPlank(t) : t === expected;
+
         // Tools (material + stick pattern: [mat, empty, stick, empty] )
         const toolRecipe = (matType, mineSpeed, damage, chopSpeed, toolName, toolSubType) => {
-            if (s[0] === matType && !s[1] && s[2] === 'stick' && !s[3])
+            if (matchesMat(s[0], matType) && !s[1] && s[2] === 'stick' && !s[3])
                 return equip(toolSubType, { mineSpeed, damage, chopSpeed }, toolName, `${toolName}. Mine Speed: ${mineSpeed}x`);
             return null;
         };
@@ -1132,7 +1147,7 @@ class UISystem {
 
         // Axes [mat, mat, empty, stick]
         const axeRecipe = (matType, mineSpeed, name) => {
-            if (s[0] === matType && s[1] === matType && !s[2] && s[3] === 'stick')
+            if (matchesMat(s[0], matType) && matchesMat(s[1], matType) && !s[2] && s[3] === 'stick')
                 return equip('axe', { mineSpeed, damage: mineSpeed }, name, `Chops wood fast. Speed: ${mineSpeed}x`);
             return null;
         };
@@ -1172,8 +1187,8 @@ class UISystem {
         if (getCount(B.CLAY) === 4) return block(B.BRICKS, 'Bricks', 4);
         if (getCount(B.SAND) === 4) return block(B.GLASS, 'Glass', 1);
         if (getCount(B.COBBLESTONE) === 4) return block(B.FURNACE, 'Furnace', 1);
-        if (getCount(B.PLANKS) === 4) return block(B.CHEST_BLOCK, 'Chest', 1);
-        if (getCount(B.PLANKS) === 2 && getCount('stick') === 2 && totalItems === 4) return block(B.BOOKSHELF, 'Bookshelf', 1);
+        if (countAnyPlank === 4 && totalItems === 4) return block(B.CHEST_BLOCK, 'Chest', 1);
+        if (countAnyPlank === 2 && getCount('stick') === 2 && totalItems === 4) return block(B.BOOKSHELF, 'Bookshelf', 1);
         if (getCount('stick') === 4 && totalItems === 4) return block(B.LADDER, 'Ladder', 3);
 
         // Storage Blocks

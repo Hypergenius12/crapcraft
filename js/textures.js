@@ -109,7 +109,13 @@ export const BLOCKS = {
     FIRE_CORAL: 100,
     HORN_CORAL: 101,
     PINE_WOOD: 102,
-    PINE_LEAVES: 103
+    PINE_LEAVES: 103,
+    ACACIA_PLANKS: 104,
+    CHERRY_PLANKS: 105,
+    AUTUMN_PLANKS: 106,
+    PALM_PLANKS: 107,
+    PINE_PLANKS: 108,
+    CRIMSON_PLANKS: 109
 };
 
 // Block properties
@@ -217,7 +223,13 @@ const BLOCK_PROPS = {
     [BLOCKS.FIRE_CORAL]:    { name: 'Fire Coral',     health: 1, transparent: true, emissive: 0, solid: false, isCross: true, drops: null },
     [BLOCKS.HORN_CORAL]:    { name: 'Horn Coral',     health: 1, transparent: true, emissive: 0, solid: false, isCross: true, drops: null },
     [BLOCKS.PINE_WOOD]:     { name: 'Pine Wood',      health: 5, transparent: false, emissive: 0, solid: true, drops: null },
-    [BLOCKS.PINE_LEAVES]:   { name: 'Pine Leaves',    health: 1, transparent: true, emissive: 0, solid: true, drops: null }
+    [BLOCKS.PINE_LEAVES]:   { name: 'Pine Leaves',    health: 1, transparent: true, emissive: 0, solid: true, drops: null },
+    [BLOCKS.ACACIA_PLANKS]: { name: 'Acacia Planks',  health: 4, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.CHERRY_PLANKS]: { name: 'Cherry Planks',  health: 4, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.AUTUMN_PLANKS]: { name: 'Autumn Planks',  health: 4, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.PALM_PLANKS]:   { name: 'Palm Planks',    health: 4, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.PINE_PLANKS]:   { name: 'Pine Planks',    health: 4, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.CRIMSON_PLANKS]:{ name: 'Crimson Planks', health: 4, transparent: false, emissive: 0, solid: true, drops: null }
 };
 
 export function getBlockProperties(type) {
@@ -281,6 +293,27 @@ function drawOreSpots(ctx, rng, color, count = 4) {
         const y = (rng() * (TEX_SIZE - 2)) | 0;
         const s = 1 + ((rng() * 2) | 0);
         ctx.fillRect(x, y, s, s);
+    }
+}
+
+function drawPlanks(ctx, rng, r, g, b, strokeColor1, strokeColor2) {
+    fillBase(ctx, r, g, b);
+    addNoise(ctx, rng, 15);
+    ctx.fillStyle = strokeColor1;
+    for (let x = 0; x < TEX_SIZE; x += 4) {
+        ctx.fillRect(x, 0, 1, TEX_SIZE);
+    }
+    ctx.fillStyle = strokeColor2;
+    for (let i = 0; i < 40; i++) {
+        const x = (rng() * TEX_SIZE) | 0;
+        const y = (rng() * TEX_SIZE) | 0;
+        const h = 2 + (rng() * 5) | 0;
+        if (x % 4 !== 0) ctx.fillRect(x, y, 1, h);
+    }
+    ctx.fillStyle = 'rgba(60, 60, 60, 0.8)';
+    for (let x = 2; x < TEX_SIZE; x += 4) {
+        ctx.fillRect(x, 1, 1, 1);
+        ctx.fillRect(x, TEX_SIZE - 2, 1, 1);
     }
 }
 
@@ -491,26 +524,7 @@ function generateBlockTexture(ctx, blockType, face, rng) {
                 ctx.clearRect(x, y, 1, 1);
             }
             break;
-        case BLOCKS.PLANKS:
-            fillBase(ctx, 160, 130, 75);
-            addNoise(ctx, rng, 15);
-            ctx.fillStyle = 'rgba(90, 65, 30, 0.7)';
-            for (let x = 0; x < TEX_SIZE; x += 4) {
-                ctx.fillRect(x, 0, 1, TEX_SIZE);
-            }
-            ctx.fillStyle = 'rgba(120, 90, 50, 0.5)';
-            for (let i = 0; i < 40; i++) {
-                const x = (rng() * TEX_SIZE) | 0;
-                const y = (rng() * TEX_SIZE) | 0;
-                const h = 2 + (rng() * 5) | 0;
-                if (x % 4 !== 0) ctx.fillRect(x, y, 1, h);
-            }
-            ctx.fillStyle = 'rgba(60, 60, 60, 0.8)';
-            for (let x = 2; x < TEX_SIZE; x += 4) {
-                ctx.fillRect(x, 1, 1, 1);
-                ctx.fillRect(x, TEX_SIZE - 2, 1, 1);
-            }
-            break;
+
         case BLOCKS.COBBLESTONE:
             fillBase(ctx, 100, 100, 100);
             addNoise(ctx, rng, 15);
@@ -1023,6 +1037,27 @@ function generateBlockTexture(ctx, blockType, face, rng) {
             ctx.fillStyle = '#2e8020';
             ctx.fillRect(8, 10, 1, 6); // Inner stem shadow
             ctx.fillRect(5, 14, 2, 1); ctx.fillRect(9, 15, 2, 1);
+            break;
+        case BLOCKS.PLANKS:
+            drawPlanks(ctx, rng, 160, 130, 75, 'rgba(90, 65, 30, 0.7)', 'rgba(120, 90, 50, 0.5)');
+            break;
+        case BLOCKS.ACACIA_PLANKS:
+            drawPlanks(ctx, rng, 160, 90, 50, 'rgba(120, 50, 30, 0.7)', 'rgba(140, 70, 40, 0.5)');
+            break;
+        case BLOCKS.CHERRY_PLANKS:
+            drawPlanks(ctx, rng, 230, 150, 160, 'rgba(180, 100, 120, 0.7)', 'rgba(200, 120, 140, 0.5)');
+            break;
+        case BLOCKS.AUTUMN_PLANKS:
+            drawPlanks(ctx, rng, 180, 100, 60, 'rgba(130, 60, 30, 0.7)', 'rgba(150, 80, 40, 0.5)');
+            break;
+        case BLOCKS.PALM_PLANKS:
+            drawPlanks(ctx, rng, 200, 170, 120, 'rgba(150, 120, 80, 0.7)', 'rgba(170, 140, 90, 0.5)');
+            break;
+        case BLOCKS.PINE_PLANKS:
+            drawPlanks(ctx, rng, 110, 80, 50, 'rgba(70, 50, 30, 0.7)', 'rgba(90, 60, 40, 0.5)');
+            break;
+        case BLOCKS.CRIMSON_PLANKS:
+            drawPlanks(ctx, rng, 120, 40, 60, 'rgba(80, 20, 40, 0.7)', 'rgba(100, 30, 50, 0.5)');
             break;
         case BLOCKS.CACTUS:
             fillBase(ctx, 40, 120, 40);
