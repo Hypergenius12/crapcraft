@@ -891,6 +891,9 @@ class Game {
 
         if (this.isPaused) {
             this.input.resetMouse();
+            // Continue loading chunks while paused
+            const chunkGenFn = this.currentDimension === 'nether' ? generateNetherChunk : generateChunkTerrain;
+            this.world.update(this.player.position, (cx, cz) => chunkGenFn(cx, cz, this.planetParams), dt);
             return;
         }
 
