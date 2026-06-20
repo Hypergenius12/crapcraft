@@ -375,12 +375,12 @@ class Game {
                 
                 // Check for portal structure nearby
                 let isPortal = false;
-                if (this.engine) {
+                if (this.world) {
                     for (let dx = -2; dx <= 2; dx++) {
                         for (let dy = -2; dy <= 2; dy++) {
                             for (let dz = -2; dz <= 2; dz++) {
-                                if (this.engine.getBlock(x+dx, y+dy, z+dz) === window.BLOCKS.NETHERRACK || 
-                                    this.engine.getBlock(x+dx, y+dy, z+dz) === window.BLOCKS.OBSIDIAN) {
+                                if (this.world.getBlock(x+dx, y+dy, z+dz) === window.BLOCKS.NETHERRACK || 
+                                    this.world.getBlock(x+dx, y+dy, z+dz) === window.BLOCKS.OBSIDIAN) {
                                     isPortal = true;
                                     break;
                                 }
