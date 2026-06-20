@@ -1061,9 +1061,25 @@ export class World {
             velocity.y = 0;
             if (targetY < position.y) { // Falling down
                 grounded = true;
-                targetY = Math.floor(targetY) + 1.0;
+                // Sweep down to find the exact floor we hit, to prevent glitching through blocks
+                // at high speeds (like during lag spikes or huge jumps)
+                let hitY = targetY;
+                for (let y = position.y; y >= targetY; y -= 0.1) {
+                    if (checkCollision(position.x, y, position.z)) {
+                        hitY = y + 0.1; // The step just before collision
+                        break;
+                    }
+                }
+                targetY = Math.floor(hitY) + 1.0;
             } else { // Jumping up and hitting ceiling
-                targetY = Math.floor(targetY + entityHeight - 0.01) - entityHeight;
+                let hitY = targetY;
+                for (let y = position.y; y <= targetY; y += 0.1) {
+                    if (checkCollision(position.x, y, position.z)) {
+                        hitY = y - 0.1;
+                        break;
+                    }
+                }
+                targetY = Math.floor(hitY + entityHeight - 0.01) - entityHeight;
             }
         }
 
