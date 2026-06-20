@@ -107,7 +107,9 @@ export const BLOCKS = {
     TUBE_CORAL: 98,
     BRAIN_CORAL: 99,
     FIRE_CORAL: 100,
-    HORN_CORAL: 101
+    HORN_CORAL: 101,
+    PINE_WOOD: 102,
+    PINE_LEAVES: 103
 };
 
 // Block properties
@@ -213,7 +215,9 @@ const BLOCK_PROPS = {
     [BLOCKS.TUBE_CORAL]:    { name: 'Tube Coral',     health: 1, transparent: true, emissive: 0, solid: false, isCross: true, drops: null },
     [BLOCKS.BRAIN_CORAL]:   { name: 'Brain Coral',    health: 1, transparent: true, emissive: 0, solid: false, isCross: true, drops: null },
     [BLOCKS.FIRE_CORAL]:    { name: 'Fire Coral',     health: 1, transparent: true, emissive: 0, solid: false, isCross: true, drops: null },
-    [BLOCKS.HORN_CORAL]:    { name: 'Horn Coral',     health: 1, transparent: true, emissive: 0, solid: false, isCross: true, drops: null }
+    [BLOCKS.HORN_CORAL]:    { name: 'Horn Coral',     health: 1, transparent: true, emissive: 0, solid: false, isCross: true, drops: null },
+    [BLOCKS.PINE_WOOD]:     { name: 'Pine Wood',      health: 5, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.PINE_LEAVES]:   { name: 'Pine Leaves',    health: 1, transparent: true, emissive: 0, solid: true, drops: null }
 };
 
 export function getBlockProperties(type) {
@@ -763,6 +767,22 @@ function generateBlockTexture(ctx, blockType, face, rng) {
             if (face === 'side') {
                 addStripes(ctx, rng, 'rgba(190, 175, 125, 0.5)', 'h', 4);
             }
+            break;
+        case BLOCKS.PINE_WOOD:
+            // Bark (dark brown with vertical striations)
+            fillBase(ctx, 60, 40, 20);
+            addNoise(ctx, rng, 15);
+            ctx.fillStyle = 'rgba(40, 25, 10, 0.6)';
+            for (let i=0; i<16; i+=2) {
+                if (rng() > 0.5) ctx.fillRect(i, 0, 1, 16);
+            }
+            break;
+        case BLOCKS.PINE_LEAVES:
+            // Dark green dense needles
+            fillBase(ctx, 20, 60, 30);
+            addNoise(ctx, rng, 20);
+            addPixels(ctx, rng, 'rgba(10, 40, 15, 0.9)', 80);
+            addPixels(ctx, rng, 'rgba(40, 90, 50, 0.6)', 40);
             break;
         case BLOCKS.RED_SAND:
             fillBase(ctx, 180, 80, 30);
@@ -1403,7 +1423,7 @@ function generateBlockTexture(ctx, blockType, face, rng) {
 }
 function hasFaceVariants(blockType) {
     return [
-        BLOCKS.GRASS, BLOCKS.WOOD, BLOCKS.MUSHROOM_STEM, BLOCKS.SAVANNA_GRASS, BLOCKS.ACACIA_WOOD, BLOCKS.SWAMP_GRASS, BLOCKS.ALIEN_GRASS, BLOCKS.PORTAL_FRAME, BLOCKS.CHERRY_LOG, BLOCKS.AUTUMN_WOOD, BLOCKS.PALM_WOOD,
+        BLOCKS.GRASS, BLOCKS.WOOD, BLOCKS.MUSHROOM_STEM, BLOCKS.SAVANNA_GRASS, BLOCKS.ACACIA_WOOD, BLOCKS.SWAMP_GRASS, BLOCKS.ALIEN_GRASS, BLOCKS.PORTAL_FRAME, BLOCKS.CHERRY_LOG, BLOCKS.AUTUMN_WOOD, BLOCKS.PALM_WOOD, BLOCKS.PINE_WOOD,
         BLOCKS.BOOKSHELF, BLOCKS.CHEST_BLOCK, BLOCKS.FURNACE, BLOCKS.CRIMSON_NYLIUM, BLOCKS.CRIMSON_STEM
     ].includes(blockType);
 }

@@ -479,25 +479,25 @@ function generateTree(blocks, x, y, z, biome, rng) {
     const isAlien = biome.alienFlora;
     const isSavanna = biome.savannaFlora;
     const isSwamp = biome.swampFlora;
+    const isPine = biome.name === 'Tundra' || biome.name === 'Ice Spikes' || biome.name === 'Mountains';
+    const isJungle = biome.jungleFlora;
+    const isCherry = biome.isCherry;
     
     let trunkType = BLOCKS.WOOD;
     let leafType = BLOCKS.LEAVES;
     
     if (isAlien) { trunkType = BLOCKS.ALIEN_SPORE_STEM; leafType = BLOCKS.ALIEN_SPORE_BLOCK; }
     else if (isSavanna) { trunkType = BLOCKS.ACACIA_WOOD; leafType = BLOCKS.ACACIA_LEAVES; }
-    else if (biome.isCherry) { trunkType = BLOCKS.CHERRY_LOG; leafType = BLOCKS.CHERRY_LEAVES; }
+    else if (isCherry) { trunkType = BLOCKS.CHERRY_LOG; leafType = BLOCKS.CHERRY_LEAVES; }
     else if (biome.isAutumn) { trunkType = BLOCKS.AUTUMN_WOOD; leafType = BLOCKS.AUTUMN_LEAVES; }
     else if (biome.isGlow) { trunkType = BLOCKS.GLOW_STEM; leafType = BLOCKS.GLOW_LEAVES; }
     else if (biome.isOasis) { trunkType = BLOCKS.PALM_WOOD; leafType = BLOCKS.PALM_LEAVES; }
-    
-    const isJungle = biome.jungleFlora;
-    const isPine = biome.name === 'Tundra' || biome.name === 'Ice Spikes' || biome.name === 'Mountains';
-    const isCherry = biome.isCherry;
+    else if (isPine) { trunkType = BLOCKS.PINE_WOOD; leafType = BLOCKS.PINE_LEAVES; }
     
     // Height generation
     let height = 4 + Math.floor(rng() * 3);
     if (isJungle) height = 7 + Math.floor(rng() * 4); // Scaled down jungle tree height
-    else if (isPine) height = 6 + Math.floor(rng() * 3);
+    else if (isPine) height = 10 + Math.floor(rng() * 6); // Taller pine trees (10-15 blocks)
     else if (isSavanna) height = 5 + Math.floor(rng() * 2);
     else if (isCherry) height = 5 + Math.floor(rng() * 2);
 
@@ -533,19 +533,30 @@ function generateTree(blocks, x, y, z, biome, rng) {
         safeSetBlock(blocks, x, y + height - 1, z-2, leafType, true);
     } 
     else if (isPine) {
-        // Cone shaped pine tree
-        const topY = y + height + 2;
-        for (let ly = y + 3; ly <= topY; ly++) {
-            const radius = Math.max(1, Math.floor((topY - ly) / 2) + 1);
+        // Cone shaped pine tree, alternating layers like Minecraft spruce
+        const topY = y + height + 1;
+        let radius = 1;
+        let layerCount = 0;
+        for (let ly = topY; ly >= y + 3; ly--) {
             if (ly === topY) {
                 safeSetBlock(blocks, x, ly, z, leafType, true);
+                layerCount++;
                 continue;
             }
+            
             for (let lx = x - radius; lx <= x + radius; lx++) {
                 for (let lz = z - radius; lz <= z + radius; lz++) {
-                    if (Math.abs(lx - x) === radius && Math.abs(lz - z) === radius && rng() < 0.5) continue;
+                    // Randomly skip corners
+                    if (Math.abs(lx - x) === radius && Math.abs(lz - z) === radius && rng() < 0.3) continue;
                     safeSetBlock(blocks, lx, ly, lz, leafType, true);
                 }
+            }
+            
+            layerCount++;
+            if (layerCount % 2 === 0) {
+                radius = Math.min(radius + 1, 3);
+            } else {
+                radius = Math.max(1, radius - 1);
             }
         }
     }
