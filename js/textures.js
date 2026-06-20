@@ -103,7 +103,11 @@ export const BLOCKS = {
     CRIMSON_NYLIUM: 94,
     CRIMSON_STEM: 95,
     CRIMSON_LEAVES: 96,
-    NETHER_WART_BLOCK: 97
+    NETHER_WART_BLOCK: 97,
+    TUBE_CORAL: 98,
+    BRAIN_CORAL: 99,
+    FIRE_CORAL: 100,
+    HORN_CORAL: 101
 };
 
 // Block properties
@@ -205,7 +209,11 @@ const BLOCK_PROPS = {
     [BLOCKS.CRIMSON_NYLIUM]:{ name: 'Crimson Nylium', health: 4, transparent: false, emissive: 0, solid: true, drops: 91 }, // drops netherrack
     [BLOCKS.CRIMSON_STEM]:  { name: 'Crimson Stem',   health: 5, transparent: false, emissive: 0, solid: true, drops: null }, // Will make it drop custom wood in drops logic if needed
     [BLOCKS.CRIMSON_LEAVES]:{ name: 'Crimson Leaves', health: 1, transparent: true, emissive: 0, solid: true, drops: null },
-    [BLOCKS.NETHER_WART_BLOCK]: { name: 'Nether Wart Block', health: 2, transparent: false, emissive: 0, solid: true, drops: null }
+    [BLOCKS.NETHER_WART_BLOCK]: { name: 'Nether Wart Block', health: 2, transparent: false, emissive: 0, solid: true, drops: null },
+    [BLOCKS.TUBE_CORAL]:    { name: 'Tube Coral',     health: 1, transparent: true, emissive: 0, solid: false, isCross: true, drops: null },
+    [BLOCKS.BRAIN_CORAL]:   { name: 'Brain Coral',    health: 1, transparent: true, emissive: 0, solid: false, isCross: true, drops: null },
+    [BLOCKS.FIRE_CORAL]:    { name: 'Fire Coral',     health: 1, transparent: true, emissive: 0, solid: false, isCross: true, drops: null },
+    [BLOCKS.HORN_CORAL]:    { name: 'Horn Coral',     health: 1, transparent: true, emissive: 0, solid: false, isCross: true, drops: null }
 };
 
 export function getBlockProperties(type) {
@@ -1365,6 +1373,28 @@ function generateBlockTexture(ctx, blockType, face, rng) {
             fillBase(ctx, 110, 0, 0);
             addNoise(ctx, rng, 25);
             addPixels(ctx, rng, 'rgba(80, 0, 0, 0.8)', 40);
+            break;
+        case BLOCKS.TUBE_CORAL:
+            ctx.fillStyle = 'rgba(0,0,0,0)'; ctx.fillRect(0,0,16,16);
+            ctx.fillStyle = 'rgb(50, 100, 200)'; ctx.fillRect(6, 6, 4, 10); ctx.fillRect(4, 4, 2, 8); ctx.fillRect(10, 5, 2, 7);
+            ctx.fillStyle = 'rgb(100, 150, 255)'; ctx.fillRect(6, 4, 4, 2); ctx.fillRect(4, 2, 2, 2); ctx.fillRect(10, 3, 2, 2);
+            addPixels(ctx, rng, 'rgba(0, 50, 150, 0.5)', 10);
+            break;
+        case BLOCKS.BRAIN_CORAL:
+            ctx.fillStyle = 'rgba(0,0,0,0)'; ctx.fillRect(0,0,16,16);
+            ctx.fillStyle = 'rgb(200, 80, 150)'; ctx.beginPath(); ctx.arc(8, 10, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgb(255, 120, 180)'; ctx.beginPath(); ctx.arc(6, 8, 2, 0, Math.PI * 2); ctx.fill();
+            addPixels(ctx, rng, 'rgba(150, 50, 100, 0.8)', 20);
+            break;
+        case BLOCKS.FIRE_CORAL:
+            ctx.fillStyle = 'rgba(0,0,0,0)'; ctx.fillRect(0,0,16,16);
+            ctx.fillStyle = 'rgb(200, 50, 20)'; ctx.beginPath(); ctx.moveTo(8, 16); ctx.lineTo(4, 2); ctx.lineTo(6, 10); ctx.lineTo(8, 0); ctx.lineTo(10, 10); ctx.lineTo(12, 4); ctx.lineTo(8, 16); ctx.fill();
+            ctx.fillStyle = 'rgb(250, 150, 50)'; ctx.fillRect(4, 2, 1, 2); ctx.fillRect(8, 0, 1, 2); ctx.fillRect(12, 4, 1, 2);
+            break;
+        case BLOCKS.HORN_CORAL:
+            ctx.fillStyle = 'rgba(0,0,0,0)'; ctx.fillRect(0,0,16,16);
+            ctx.fillStyle = 'rgb(200, 200, 50)'; ctx.fillRect(5, 12, 6, 4); ctx.fillRect(3, 8, 4, 4); ctx.fillRect(9, 6, 4, 6);
+            ctx.fillStyle = 'rgb(250, 250, 100)'; ctx.fillRect(3, 6, 2, 2); ctx.fillRect(9, 4, 2, 2); ctx.fillRect(11, 4, 2, 2);
             break;
         default:
             fillBase(ctx, 255, 0, 255);

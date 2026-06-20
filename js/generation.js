@@ -26,7 +26,8 @@ const BIOMES = {
     CHERRY_GROVE: { name: 'Cherry Grove', surface: BLOCKS.GRASS, dirt: BLOCKS.DIRT, freq: 0.7, hasTrees: true, isCherry: true },
     AUTUMN_FOREST: { name: 'Autumn Forest', surface: BLOCKS.GRASS, dirt: BLOCKS.DIRT, freq: 0.7, hasTrees: true, isAutumn: true },
     GLOW_FOREST: { name: 'Glow Forest', surface: BLOCKS.ALIEN_GRASS, dirt: BLOCKS.ALIEN_STONE, freq: 0.5, hasTrees: true, isGlow: true },
-    OASIS: { name: 'Oasis', surface: BLOCKS.SAND, dirt: BLOCKS.SAND, freq: 0.2, hasTrees: true, isOasis: true }
+    OASIS: { name: 'Oasis', surface: BLOCKS.SAND, dirt: BLOCKS.SAND, freq: 0.2, hasTrees: true, isOasis: true },
+    CORAL_REEF: { name: 'Coral Reef', surface: BLOCKS.SAND, dirt: BLOCKS.SAND, freq: 0.3, hasTrees: false, isCoralReef: true }
 };
 
 export class PlanetParams {
@@ -103,9 +104,9 @@ export function getBiomeParams(wx, wz, params) {
             heightMult = subNoise > 0.6 ? 2.0 : 0.2;
             isTerraced = biome === BIOMES.BADLANDS;
         } else if (isWet) {
-            biome = subNoise > 0.5 ? BIOMES.JUNGLE : BIOMES.SWAMP;
-            heightMult = biome === BIOMES.SWAMP ? 0.1 : 1.2;
-            if (biome === BIOMES.SWAMP) baseOffset = -2;
+            if (subNoise > 0.8) { biome = BIOMES.JUNGLE; heightMult = 1.2; }
+            else if (subNoise > 0.6) { biome = BIOMES.CORAL_REEF; heightMult = 0.2; baseOffset = -5; }
+            else { biome = BIOMES.SWAMP; heightMult = 0.1; baseOffset = -2; }
         } else {
             biome = BIOMES.SAVANNA;
             heightMult = 0.8;
@@ -427,7 +428,19 @@ export function generateChunkTerrain(cx, cz, params) {
                     generateWizardTower(blocks, tx, surfaceY + 1, tz, floraRng);
                 } else if (r < 0.002 && (biome === BIOMES.FOREST || biome === BIOMES.PLAINS || biome === BIOMES.TUNDRA)) {
                     generateCabin(blocks, tx, surfaceY + 1, tz, floraRng);
-                } else if (biome.name !== 'Desert' && biome.name !== 'Badlands' && biome.name !== 'Volcanic' && biome.name !== 'Ice Spikes' && biome.name !== 'Deep Ocean') {
+                } else if (biome.isCoralReef && surfaceY < params.seaLevel && r < 0.3) {
+                    const cRng = floraRng();
+                    let coralType;
+                    if (cRng < 0.2) coralType = BLOCKS.TUBE_CORAL;
+                    else if (cRng < 0.4) coralType = BLOCKS.BRAIN_CORAL;
+                    else if (cRng < 0.6) coralType = BLOCKS.FIRE_CORAL;
+                    else if (cRng < 0.8) coralType = BLOCKS.HORN_CORAL;
+                    else if (cRng < 0.9) coralType = BLOCKS.GLOWSTONE; // Sea pickle equivalent
+                    else coralType = BLOCKS.SAND; // Blank space
+                    if (coralType !== BLOCKS.SAND) {
+                        safeSetBlock(blocks, tx, surfaceY + 1, tz, coralType);
+                    }
+                } else if (biome.name !== 'Desert' && biome.name !== 'Badlands' && biome.name !== 'Volcanic' && biome.name !== 'Ice Spikes' && biome.name !== 'Deep Ocean' && !biome.isCoralReef) {
                     // Normal grass logic
                     let r = floraRng();
                     if (biome === BIOMES.CHERRY_GROVE && r < 0.4) {

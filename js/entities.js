@@ -1011,6 +1011,60 @@ export const MOB_TYPES = {
             if (rf) rf.rotation.x = Math.sin(age * speed) * 0.2;
         }
     },
+    CLOWNFISH: {
+        name: 'Clownfish', health: 3, damage: 0, speed: 2.2, hostile: false, color: 0xff6600,
+        size: 0.25, xpDrop: 1, lootChance: 0.1, waterOnly: true,
+        buildMesh: () => {
+            const group = new THREE.Group();
+            const body = createBodyPart(new THREE.BoxGeometry(0.08, 0.15, 0.25), 0xff6600);
+            body.position.y = 0.15; group.add(body);
+            const s1 = createBodyPart(new THREE.BoxGeometry(0.085, 0.16, 0.04), 0xffffff);
+            s1.position.set(0, 0.15, 0.08); group.add(s1);
+            const s2 = createBodyPart(new THREE.BoxGeometry(0.085, 0.16, 0.04), 0xffffff);
+            s2.position.set(0, 0.15, -0.02); group.add(s2);
+            const s3 = createBodyPart(new THREE.BoxGeometry(0.085, 0.13, 0.03), 0xffffff);
+            s3.position.set(0, 0.15, -0.10); group.add(s3);
+            const tailGeo = new THREE.BoxGeometry(0.02, 0.1, 0.1);
+            const tail = createBodyPart(tailGeo, 0xffffff); tail.position.set(0, 0.15, -0.15); tail.name = 'tail'; group.add(tail);
+            const finGeo = new THREE.BoxGeometry(0.1, 0.02, 0.08);
+            const lf = createBodyPart(finGeo, 0xff8800); lf.position.set(-0.06, 0.1, 0); lf.rotation.z = -0.3; lf.name = 'leftFin'; group.add(lf);
+            const rf = createBodyPart(finGeo, 0xff8800); rf.position.set(0.06, 0.1, 0); rf.rotation.z = 0.3; rf.name = 'rightFin'; group.add(rf);
+            return group;
+        },
+        animate: (mesh, dt, age, isMoving) => {
+            const speed = isMoving ? 30 : 10;
+            const tail = mesh.getObjectByName('tail');
+            if (tail) tail.rotation.y = Math.sin(age * speed) * 0.4;
+            const lf = mesh.getObjectByName('leftFin');
+            const rf = mesh.getObjectByName('rightFin');
+            if (lf) lf.rotation.x = Math.sin(age * speed) * 0.3;
+            if (rf) rf.rotation.x = Math.sin(age * speed + Math.PI) * 0.3;
+        }
+    },
+    BLUE_TANG: {
+        name: 'Blue Tang', health: 3, damage: 0, speed: 2.8, hostile: false, color: 0x0055ff,
+        size: 0.3, xpDrop: 1, lootChance: 0.1, waterOnly: true,
+        buildMesh: () => {
+            const group = new THREE.Group();
+            const body = createBodyPart(new THREE.BoxGeometry(0.05, 0.22, 0.25), 0x0055ff);
+            body.position.y = 0.15; group.add(body);
+            const tailGeo = new THREE.BoxGeometry(0.02, 0.12, 0.12);
+            const tail = createBodyPart(tailGeo, 0xffff00); tail.position.set(0, 0.15, -0.16); tail.name = 'tail'; group.add(tail);
+            const finGeo = new THREE.BoxGeometry(0.08, 0.02, 0.06);
+            const lf = createBodyPart(finGeo, 0xffff00); lf.position.set(-0.04, 0.1, 0); lf.rotation.z = -0.3; lf.name = 'leftFin'; group.add(lf);
+            const rf = createBodyPart(finGeo, 0xffff00); rf.position.set(0.04, 0.1, 0); rf.rotation.z = 0.3; rf.name = 'rightFin'; group.add(rf);
+            return group;
+        },
+        animate: (mesh, dt, age, isMoving) => {
+            const speed = isMoving ? 30 : 10;
+            const tail = mesh.getObjectByName('tail');
+            if (tail) tail.rotation.y = Math.sin(age * speed) * 0.4;
+            const lf = mesh.getObjectByName('leftFin');
+            const rf = mesh.getObjectByName('rightFin');
+            if (lf) lf.rotation.x = Math.sin(age * speed) * 0.3;
+            if (rf) rf.rotation.x = Math.sin(age * speed + Math.PI) * 0.3;
+        }
+    },
     SALMON: {
         name: 'Salmon', health: 6, damage: 0, speed: 3.5, hostile: false, color: 0xff5555,
         size: 0.4, xpDrop: 3, lootChance: 0.15, waterOnly: true,
@@ -1750,8 +1804,25 @@ export class EntityManager {
                     if (b !== BLOCKS.AIR && b !== BLOCKS.LAVA) {
                         let type;
                         if (b === BLOCKS.WATER || b === BLOCKS.SWAMP_WATER) {
-                            const aquatic = ['TROPICAL_FISH', 'SALMON', 'PUFFERFISH', 'TURTLE'];
-                            type = aquatic[Math.floor(Math.random() * aquatic.length)];
+                            let isReef = false;
+                            for (let cx = -2; cx <= 2; cx++) {
+                                for (let cz = -2; cz <= 2; cz++) {
+                                    const fb = world.getBlock(sx + cx, y - 1, sz + cz);
+                                    if (fb >= BLOCKS.TUBE_CORAL && fb <= BLOCKS.HORN_CORAL) {
+                                        isReef = true;
+                                        break;
+                                    }
+                                }
+                                if (isReef) break;
+                            }
+                            
+                            if (isReef) {
+                                const reefAquatic = ['CLOWNFISH', 'BLUE_TANG', 'TROPICAL_FISH', 'PUFFERFISH'];
+                                type = reefAquatic[Math.floor(Math.random() * reefAquatic.length)];
+                            } else {
+                                const aquatic = ['SALMON', 'SALMON', 'TROPICAL_FISH', 'TURTLE'];
+                                type = aquatic[Math.floor(Math.random() * aquatic.length)];
+                            }
                         } else {
                             type = pickRandomMobType(currentDimension === 'nether');
                             while(MOB_TYPES[type].waterOnly) {
