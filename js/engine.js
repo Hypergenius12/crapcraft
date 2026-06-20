@@ -673,7 +673,7 @@ export class World {
             const dirs = [[0,-1,0], [0,1,0], [1,0,0], [-1,0,0], [0,0,1], [0,0,-1]];
             for (let d of dirs) {
                 const adj = this.getBlock(x + d[0], y + d[1], z + d[2]);
-                const p = window.getBlockProperties(adj);
+                const p = getBlockProperties(adj);
                 if (p && p.solid) { hasSupport = true; break; }
             }
             if (!hasSupport) needsBreak = true;
@@ -684,7 +684,7 @@ export class World {
             const dirs = [[1,0,0], [-1,0,0], [0,0,1], [0,0,-1]];
             for (let d of dirs) {
                 const adj = this.getBlock(x + d[0], y + d[1], z + d[2]);
-                const p = window.getBlockProperties(adj);
+                const p = getBlockProperties(adj);
                 if (p && p.solid) { hasSupport = true; break; }
             }
             if (!hasSupport) needsBreak = true;

@@ -899,6 +899,10 @@ export function generatePortalStructure(blocks, x, y, z, rng) {
             if (rng() < 0.6) safeSetBlock(blocks, px, y - 1, pz, BLOCKS.NETHERRACK);
         }
     }
+    // Add a chest with loot
+    if (rng() < 0.8) {
+        safeSetBlock(blocks, x + 1, y, z + 1, BLOCKS.CHEST_BLOCK);
+    }
 }
 
 export function generateCabin(blocks, x, y, z, rng) {

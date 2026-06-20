@@ -494,6 +494,7 @@ class UISystem {
         let slot = null;
         if (type === 'inventory') slot = this.currentPlayer.inventory.slots[index];
         else if (type === 'crafting') slot = this.craftingSlots[index];
+        else if (type === 'chest') slot = this.chestInventory[index];
         else if (type === 'crafting_output') {
             const result = this._matchRecipe();
             if (result) {

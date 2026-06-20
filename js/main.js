@@ -372,8 +372,34 @@ class Game {
                 // Randomly generate loot
                 const rng = () => Math.random();
                 let lootTable = [];
-                // Check if this is a dungeon chest based on depth
-                if (y < 40) {
+                
+                // Check for portal structure nearby
+                let isPortal = false;
+                if (this.engine) {
+                    for (let dx = -2; dx <= 2; dx++) {
+                        for (let dy = -2; dy <= 2; dy++) {
+                            for (let dz = -2; dz <= 2; dz++) {
+                                if (this.engine.getBlock(x+dx, y+dy, z+dz) === window.BLOCKS.NETHERRACK || 
+                                    this.engine.getBlock(x+dx, y+dy, z+dz) === window.BLOCKS.OBSIDIAN) {
+                                    isPortal = true;
+                                    break;
+                                }
+                            }
+                            if (isPortal) break;
+                        }
+                        if (isPortal) break;
+                    }
+                }
+
+                if (isPortal) {
+                    lootTable = [
+                        { item: new Item('material', 'obsidian', {}, 'Obsidian'), maxCount: 8, chance: 1.0 },
+                        { item: new Item('equipment', 'flint_and_steel', { damage: 0 }, 'Flint and Steel'), maxCount: 1, chance: 1.0 },
+                        { item: new Item('material', 'gold_ingot', {}, 'Gold Ingot'), maxCount: 5, chance: 0.6 },
+                        { item: Item.equipmentItem('sword_gold', { damage: 6 }, 'Gold Sword'), maxCount: 1, chance: 0.3 }
+                    ];
+                } else if (y < 40) {
+                    // Check if this is a dungeon chest based on depth
                     lootTable = [
                         { item: new Item('material', 'iron_ingot', {}, 'Iron Ingot'), maxCount: 8, chance: 0.6 },
                         { item: new Item('material', 'gold_ingot', {}, 'Gold Ingot'), maxCount: 4, chance: 0.4 },
