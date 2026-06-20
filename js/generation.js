@@ -537,7 +537,8 @@ function generateTree(blocks, x, y, z, biome, rng) {
         const topY = y + height + 1;
         let radius = 1;
         let layerCount = 0;
-        for (let ly = topY; ly >= y + 3; ly--) {
+        const bottomY = y + Math.floor(height / 2);
+        for (let ly = topY; ly >= bottomY; ly--) {
             if (ly === topY) {
                 safeSetBlock(blocks, x, ly, z, leafType, true);
                 layerCount++;
