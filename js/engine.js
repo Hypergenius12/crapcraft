@@ -205,6 +205,22 @@ const FACES = [
     { dir: [0, 0, 1], v: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], name: 'front' }, // front
     { dir: [0, 0, -1], v: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], name: 'side' }, // back
 ];
+// ============================================
+// Mesh Generation Buffers (Shared to eliminate GC)
+// ============================================
+const MAX_VERTICES = 2000000; // ~600k vertices is typical for a fully solid chunk, 2M is very safe
+const MAX_INDICES = Math.floor(MAX_VERTICES / 4 * 6);
+
+const _positions = new Float32Array(MAX_VERTICES * 3);
+const _normals = new Float32Array(MAX_VERTICES * 3);
+const _uvs = new Float32Array(MAX_VERTICES * 2);
+const _colors = new Float32Array(MAX_VERTICES * 3);
+
+const _opaqueIndices = new Uint32Array(MAX_INDICES);
+const _crossIndices = new Uint32Array(MAX_INDICES);
+const _glowCrossIndices = new Uint32Array(MAX_INDICES);
+const _waterIndices = new Uint32Array(MAX_INDICES);
+const _transparentIndices = new Uint32Array(MAX_INDICES);
 
 export class Chunk {
     constructor(cx, cz) {
@@ -237,17 +253,32 @@ export class Chunk {
         this.data[(ly * CHUNK_SIZE * CHUNK_SIZE) + (lz * CHUNK_SIZE) + lx] = dataValue;
     }
 
-    buildMesh(atlas, getNeighborBlock) {
-        const positions = [];
-        const normals = [];
-        const uvs = [];
-        const colors = [];
+    buildMesh(atlas, neighborChunks) {
+        // Create an optimized local getter to avoid Hash Map lookups across chunk boundaries
+        const getBlockOptimized = (wx, wy, wz) => {
+            if (wy < 0 || wy >= CHUNK_HEIGHT) return BLOCKS.AIR;
+            const dcx = Math.floor(wx / CHUNK_SIZE) - this.cx;
+            const dcz = Math.floor(wz / CHUNK_SIZE) - this.cz;
+            if (dcx >= -1 && dcx <= 1 && dcz >= -1 && dcz <= 1) {
+                const c = neighborChunks[dcx + 1][dcz + 1];
+                if (c) {
+                    const lx = wx - (this.cx + dcx) * CHUNK_SIZE;
+                    const lz = wz - (this.cz + dcz) * CHUNK_SIZE;
+                    return c.blocks[(wy * CHUNK_SIZE * CHUNK_SIZE) + (lz * CHUNK_SIZE) + lx];
+                }
+            }
+            return BLOCKS.AIR;
+        };
 
-        const opaqueIndices = [];
-        const crossIndices = [];
-        const glowCrossIndices = [];
-        const waterIndices = [];
-        const transparentIndices = [];
+        let posCount = 0;
+        let uvCount = 0;
+        let colorCount = 0;
+
+        let opaqueIndexCount = 0;
+        let crossIndexCount = 0;
+        let glowCrossIndexCount = 0;
+        let waterIndexCount = 0;
+        let transparentIndexCount = 0;
 
         let vertexCount = 0;
 
@@ -267,20 +298,58 @@ export class Chunk {
                     if (props.isCross) {
                         const uvInfo = atlas.getUV(blockType, 'side');
                         // Diagonal 1
-                        positions.push(x, y, z, x + 1, y, z + 1, x + 1, y + 1, z + 1, x, y + 1, z);
-                        normals.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0); // Point up for even lighting
-                        uvs.push(uvInfo.u, uvInfo.v, uvInfo.u + uvInfo.uSize, uvInfo.v, uvInfo.u + uvInfo.uSize, uvInfo.v + uvInfo.vSize, uvInfo.u, uvInfo.v + uvInfo.vSize);
-                        colors.push(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+                        _positions[posCount++] = x; _positions[posCount++] = y; _positions[posCount++] = z;
+                        _positions[posCount++] = x + 1; _positions[posCount++] = y; _positions[posCount++] = z + 1;
+                        _positions[posCount++] = x + 1; _positions[posCount++] = y + 1; _positions[posCount++] = z + 1;
+                        _positions[posCount++] = x; _positions[posCount++] = y + 1; _positions[posCount++] = z;
+                        
+                        _normals[posCount - 12] = 0; _normals[posCount - 11] = 1; _normals[posCount - 10] = 0;
+                        _normals[posCount - 9] = 0; _normals[posCount - 8] = 1; _normals[posCount - 7] = 0;
+                        _normals[posCount - 6] = 0; _normals[posCount - 5] = 1; _normals[posCount - 4] = 0;
+                        _normals[posCount - 3] = 0; _normals[posCount - 2] = 1; _normals[posCount - 1] = 0;
+
+                        _uvs[uvCount++] = uvInfo.u; _uvs[uvCount++] = uvInfo.v;
+                        _uvs[uvCount++] = uvInfo.u + uvInfo.uSize; _uvs[uvCount++] = uvInfo.v;
+                        _uvs[uvCount++] = uvInfo.u + uvInfo.uSize; _uvs[uvCount++] = uvInfo.v + uvInfo.vSize;
+                        _uvs[uvCount++] = uvInfo.u; _uvs[uvCount++] = uvInfo.v + uvInfo.vSize;
+
+                        _colors[colorCount++] = 1; _colors[colorCount++] = 1; _colors[colorCount++] = 1;
+                        _colors[colorCount++] = 1; _colors[colorCount++] = 1; _colors[colorCount++] = 1;
+                        _colors[colorCount++] = 1; _colors[colorCount++] = 1; _colors[colorCount++] = 1;
+                        _colors[colorCount++] = 1; _colors[colorCount++] = 1; _colors[colorCount++] = 1;
 
                         // Diagonal 2
-                        positions.push(x, y, z + 1, x + 1, y, z, x + 1, y + 1, z, x, y + 1, z + 1);
-                        normals.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0); // Point up
-                        uvs.push(uvInfo.u, uvInfo.v, uvInfo.u + uvInfo.uSize, uvInfo.v, uvInfo.u + uvInfo.uSize, uvInfo.v + uvInfo.vSize, uvInfo.u, uvInfo.v + uvInfo.vSize);
-                        colors.push(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+                        _positions[posCount++] = x; _positions[posCount++] = y; _positions[posCount++] = z + 1;
+                        _positions[posCount++] = x + 1; _positions[posCount++] = y; _positions[posCount++] = z;
+                        _positions[posCount++] = x + 1; _positions[posCount++] = y + 1; _positions[posCount++] = z;
+                        _positions[posCount++] = x; _positions[posCount++] = y + 1; _positions[posCount++] = z + 1;
 
-                        const indicesArray = blockType === BLOCKS.TORCH ? glowCrossIndices : crossIndices;
-                        indicesArray.push(vertexCount, vertexCount + 1, vertexCount + 2, vertexCount, vertexCount + 2, vertexCount + 3);
-                        indicesArray.push(vertexCount + 4, vertexCount + 5, vertexCount + 6, vertexCount + 4, vertexCount + 6, vertexCount + 7);
+                        _normals[posCount - 12] = 0; _normals[posCount - 11] = 1; _normals[posCount - 10] = 0;
+                        _normals[posCount - 9] = 0; _normals[posCount - 8] = 1; _normals[posCount - 7] = 0;
+                        _normals[posCount - 6] = 0; _normals[posCount - 5] = 1; _normals[posCount - 4] = 0;
+                        _normals[posCount - 3] = 0; _normals[posCount - 2] = 1; _normals[posCount - 1] = 0;
+
+                        _uvs[uvCount++] = uvInfo.u; _uvs[uvCount++] = uvInfo.v;
+                        _uvs[uvCount++] = uvInfo.u + uvInfo.uSize; _uvs[uvCount++] = uvInfo.v;
+                        _uvs[uvCount++] = uvInfo.u + uvInfo.uSize; _uvs[uvCount++] = uvInfo.v + uvInfo.vSize;
+                        _uvs[uvCount++] = uvInfo.u; _uvs[uvCount++] = uvInfo.v + uvInfo.vSize;
+
+                        _colors[colorCount++] = 1; _colors[colorCount++] = 1; _colors[colorCount++] = 1;
+                        _colors[colorCount++] = 1; _colors[colorCount++] = 1; _colors[colorCount++] = 1;
+                        _colors[colorCount++] = 1; _colors[colorCount++] = 1; _colors[colorCount++] = 1;
+                        _colors[colorCount++] = 1; _colors[colorCount++] = 1; _colors[colorCount++] = 1;
+
+                        if (blockType === BLOCKS.TORCH) {
+                            _glowCrossIndices[glowCrossIndexCount++] = vertexCount; _glowCrossIndices[glowCrossIndexCount++] = vertexCount + 1; _glowCrossIndices[glowCrossIndexCount++] = vertexCount + 2;
+                            _glowCrossIndices[glowCrossIndexCount++] = vertexCount; _glowCrossIndices[glowCrossIndexCount++] = vertexCount + 2; _glowCrossIndices[glowCrossIndexCount++] = vertexCount + 3;
+                            _glowCrossIndices[glowCrossIndexCount++] = vertexCount + 4; _glowCrossIndices[glowCrossIndexCount++] = vertexCount + 5; _glowCrossIndices[glowCrossIndexCount++] = vertexCount + 6;
+                            _glowCrossIndices[glowCrossIndexCount++] = vertexCount + 4; _glowCrossIndices[glowCrossIndexCount++] = vertexCount + 6; _glowCrossIndices[glowCrossIndexCount++] = vertexCount + 7;
+                        } else {
+                            _crossIndices[crossIndexCount++] = vertexCount; _crossIndices[crossIndexCount++] = vertexCount + 1; _crossIndices[crossIndexCount++] = vertexCount + 2;
+                            _crossIndices[crossIndexCount++] = vertexCount; _crossIndices[crossIndexCount++] = vertexCount + 2; _crossIndices[crossIndexCount++] = vertexCount + 3;
+                            _crossIndices[crossIndexCount++] = vertexCount + 4; _crossIndices[crossIndexCount++] = vertexCount + 5; _crossIndices[crossIndexCount++] = vertexCount + 6;
+                            _crossIndices[crossIndexCount++] = vertexCount + 4; _crossIndices[crossIndexCount++] = vertexCount + 6; _crossIndices[crossIndexCount++] = vertexCount + 7;
+                        }
                         vertexCount += 8;
                         continue;
                     }
@@ -292,9 +361,10 @@ export class Chunk {
 
                         let neighborType;
                         if (nx < 0 || nx >= CHUNK_SIZE || nz < 0 || nz >= CHUNK_SIZE || ny < 0 || ny >= CHUNK_HEIGHT) {
-                            neighborType = getNeighborBlock(wx + face.dir[0], ny, wz + face.dir[2]);
+                            neighborType = getBlockOptimized(wx + face.dir[0], ny, wz + face.dir[2]);
                         } else {
-                            neighborType = this.getBlock(nx, ny, nz);
+                            // Fast path for blocks inside chunk
+                            neighborType = this.blocks[(ny * CHUNK_SIZE * CHUNK_SIZE) + (nz * CHUNK_SIZE) + nx];
                         }
 
                         const neighborProps = getBlockProperties(neighborType);
@@ -309,18 +379,23 @@ export class Chunk {
                             // 4 vertices per face
                             for (let i = 0; i < 4; i++) {
                                 const v = face.v[i];
-                                positions.push(x + v[0], y + v[1], z + v[2]);
-                                normals.push(face.dir[0], face.dir[1], face.dir[2]);
+                                _positions[posCount++] = x + v[0];
+                                _positions[posCount++] = y + v[1];
+                                _positions[posCount++] = z + v[2];
+                                
+                                _normals[posCount - 3] = face.dir[0];
+                                _normals[posCount - 2] = face.dir[1];
+                                _normals[posCount - 1] = face.dir[2];
                             }
 
                             // UVs mapping
-                            uvs.push(uvInfo.u, uvInfo.v); // bottom left
-                            uvs.push(uvInfo.u + uvInfo.uSize, uvInfo.v); // bottom right
-                            uvs.push(uvInfo.u + uvInfo.uSize, uvInfo.v + uvInfo.vSize); // top right
-                            uvs.push(uvInfo.u, uvInfo.v + uvInfo.vSize); // top left
+                            _uvs[uvCount++] = uvInfo.u; _uvs[uvCount++] = uvInfo.v; // bottom left
+                            _uvs[uvCount++] = uvInfo.u + uvInfo.uSize; _uvs[uvCount++] = uvInfo.v; // bottom right
+                            _uvs[uvCount++] = uvInfo.u + uvInfo.uSize; _uvs[uvCount++] = uvInfo.v + uvInfo.vSize; // top right
+                            _uvs[uvCount++] = uvInfo.u; _uvs[uvCount++] = uvInfo.v + uvInfo.vSize; // top left
 
                             // Calculate ambient occlusion
-                            const aoColor = calculateVertexAO(wx, y, wz, face, getNeighborBlock, blockType);
+                            const aoColor = calculateVertexAO(wx, y, wz, face, getBlockOptimized, blockType);
                             
                             let waterFade = 0;
                             if (neighborType === BLOCKS.WATER || neighborType === BLOCKS.SWAMP_WATER) {
@@ -333,26 +408,29 @@ export class Chunk {
                             for (let i = 0; i < 4; i++) {
                                 let c = aoColor[i];
                                 if (waterFade > 0) {
-                                    colors.push(
-                                        c * (1 - waterFade) + wc.r * waterFade,
-                                        c * (1 - waterFade) + wc.g * waterFade,
-                                        c * (1 - waterFade) + wc.b * waterFade
-                                    );
+                                    _colors[colorCount++] = c * (1 - waterFade) + wc.r * waterFade;
+                                    _colors[colorCount++] = c * (1 - waterFade) + wc.g * waterFade;
+                                    _colors[colorCount++] = c * (1 - waterFade) + wc.b * waterFade;
                                 } else {
-                                    colors.push(c, c, c);
+                                    _colors[colorCount++] = c;
+                                    _colors[colorCount++] = c;
+                                    _colors[colorCount++] = c;
                                 }
                             }
 
                             // Add indices
-                            let indicesArray = opaqueIndices;
                             if (props.transparent) {
                                 if (blockType === BLOCKS.WATER || blockType === BLOCKS.SWAMP_WATER || blockType === BLOCKS.LAVA) {
-                                    indicesArray = waterIndices;
+                                    _waterIndices[waterIndexCount++] = vertexCount; _waterIndices[waterIndexCount++] = vertexCount + 1; _waterIndices[waterIndexCount++] = vertexCount + 2;
+                                    _waterIndices[waterIndexCount++] = vertexCount; _waterIndices[waterIndexCount++] = vertexCount + 2; _waterIndices[waterIndexCount++] = vertexCount + 3;
                                 } else {
-                                    indicesArray = transparentIndices;
+                                    _transparentIndices[transparentIndexCount++] = vertexCount; _transparentIndices[transparentIndexCount++] = vertexCount + 1; _transparentIndices[transparentIndexCount++] = vertexCount + 2;
+                                    _transparentIndices[transparentIndexCount++] = vertexCount; _transparentIndices[transparentIndexCount++] = vertexCount + 2; _transparentIndices[transparentIndexCount++] = vertexCount + 3;
                                 }
+                            } else {
+                                _opaqueIndices[opaqueIndexCount++] = vertexCount; _opaqueIndices[opaqueIndexCount++] = vertexCount + 1; _opaqueIndices[opaqueIndexCount++] = vertexCount + 2;
+                                _opaqueIndices[opaqueIndexCount++] = vertexCount; _opaqueIndices[opaqueIndexCount++] = vertexCount + 2; _opaqueIndices[opaqueIndexCount++] = vertexCount + 3;
                             }
-                            indicesArray.push(vertexCount, vertexCount + 1, vertexCount + 2, vertexCount, vertexCount + 2, vertexCount + 3);
                             vertexCount += 4;
                         }
                     }
@@ -361,80 +439,43 @@ export class Chunk {
         }
 
         const geometry = new THREE.BufferGeometry();
-        const allIndices = [...opaqueIndices, ...crossIndices, ...glowCrossIndices, ...waterIndices, ...transparentIndices];
-        geometry.setIndex(allIndices);
+        
+        // Merge indices into one big index array
+        const totalIndices = opaqueIndexCount + crossIndexCount + glowCrossIndexCount + waterIndexCount + transparentIndexCount;
+        const allIndices = new Uint32Array(totalIndices);
+        
+        allIndices.set(_opaqueIndices.subarray(0, opaqueIndexCount), 0);
+        allIndices.set(_crossIndices.subarray(0, crossIndexCount), opaqueIndexCount);
+        allIndices.set(_glowCrossIndices.subarray(0, glowCrossIndexCount), opaqueIndexCount + crossIndexCount);
+        allIndices.set(_waterIndices.subarray(0, waterIndexCount), opaqueIndexCount + crossIndexCount + glowCrossIndexCount);
+        allIndices.set(_transparentIndices.subarray(0, transparentIndexCount), opaqueIndexCount + crossIndexCount + glowCrossIndexCount + waterIndexCount);
 
-        geometry.addGroup(0, opaqueIndices.length, 0);
-        geometry.addGroup(opaqueIndices.length, crossIndices.length, 1);
-        geometry.addGroup(opaqueIndices.length + crossIndices.length, glowCrossIndices.length, 2);
-        geometry.addGroup(opaqueIndices.length + crossIndices.length + glowCrossIndices.length, waterIndices.length, 3);
-        geometry.addGroup(opaqueIndices.length + crossIndices.length + glowCrossIndices.length + waterIndices.length, transparentIndices.length, 4);
+        geometry.setIndex(new THREE.BufferAttribute(allIndices, 1));
 
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-        geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-        geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.addGroup(0, opaqueIndexCount, 0);
+        geometry.addGroup(opaqueIndexCount, crossIndexCount, 1);
+        geometry.addGroup(opaqueIndexCount + crossIndexCount, glowCrossIndexCount, 2);
+        geometry.addGroup(opaqueIndexCount + crossIndexCount + glowCrossIndexCount, waterIndexCount, 3);
+        geometry.addGroup(opaqueIndexCount + crossIndexCount + glowCrossIndexCount + waterIndexCount, transparentIndexCount, 4);
 
-        // Use MeshLambertMaterial for classic Minecraft voxel shading style
-        const matOpaque = new THREE.MeshLambertMaterial({
-            map: atlas.texture,
-            vertexColors: true,
-            transparent: false,
-            alphaTest: 0.5,
-            side: THREE.DoubleSide
-        });
+        geometry.setAttribute('position', new THREE.BufferAttribute(_positions.slice(0, posCount), 3));
+        geometry.setAttribute('normal', new THREE.BufferAttribute(_normals.slice(0, posCount), 3));
+        geometry.setAttribute('uv', new THREE.BufferAttribute(_uvs.slice(0, uvCount), 2));
+        geometry.setAttribute('color', new THREE.BufferAttribute(_colors.slice(0, colorCount), 3));
 
-        const matCross = new THREE.MeshLambertMaterial({
-            map: atlas.texture,
-            vertexColors: true,
-            transparent: false,
-            alphaTest: 0.5,
-            side: THREE.DoubleSide
-        });
-
-        const matGlowCross = new THREE.MeshLambertMaterial({
-            map: atlas.texture,
-            vertexColors: true,
-            transparent: false,
-            alphaTest: 0.5,
-            side: THREE.DoubleSide,
-            emissive: new THREE.Color(0xffffff),
-            emissiveMap: atlas.texture,
-            emissiveIntensity: 1.0
-        });
-
-        const matWater = new THREE.MeshLambertMaterial({
-            map: atlas.texture,
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.8,
-            side: THREE.DoubleSide
-        });
-
-        const matTransparent = new THREE.MeshLambertMaterial({
-            map: atlas.texture,
-            vertexColors: true,
-            transparent: true,
-            alphaTest: 0.5,
-            side: THREE.DoubleSide
-        });
-
-        const materials = [matOpaque, matCross, matGlowCross, matWater, matTransparent];
+        // Use shared materials instead of allocating new ones
+        const materials = atlas.sharedMaterials;
 
         if (this.mesh) {
             this.mesh.geometry.dispose();
-            if (Array.isArray(this.mesh.material)) {
-                this.mesh.material.forEach(m => m.dispose());
-            } else {
-                this.mesh.material.dispose();
-            }
+            // DO NOT dispose materials since they are shared globally
             this.mesh.geometry = geometry;
             this.mesh.material = materials;
         } else {
             this.mesh = new THREE.Mesh(geometry, materials);
             this.mesh.position.set(this.cx * CHUNK_SIZE, 0, this.cz * CHUNK_SIZE);
             this.mesh.castShadow = false; // Massive performance gain: voxel terrain doesn't need to cast shadows on itself
-            this.mesh.receiveShadow = true;
+            this.mesh.receiveShadow = false; // Voxel terrain uses AO and sunlight baked into colors, receiving shadows kills FPS
         }
         this.dirty = false;
         return this.mesh;
@@ -444,11 +485,7 @@ export class Chunk {
         if (this.mesh) {
             if (this.mesh.parent) this.mesh.parent.remove(this.mesh);
             this.mesh.geometry.dispose();
-            if (Array.isArray(this.mesh.material)) {
-                this.mesh.material.forEach(m => m.dispose());
-            } else {
-                this.mesh.material.dispose();
-            }
+            // DO NOT dispose materials since they are shared globally
             this.mesh = null;
         }
     }
@@ -504,6 +541,47 @@ export class World {
         this.atlas = atlas;
         this.chunks = new Map();
         this.renderDistance = 8;
+        
+        // Initialize shared materials to drastically reduce GC and WebGL overhead
+        const matOpaque = new THREE.MeshLambertMaterial({
+            map: atlas.texture,
+            vertexColors: true,
+            transparent: false,
+            alphaTest: 0.5,
+            side: THREE.DoubleSide
+        });
+        const matCross = new THREE.MeshLambertMaterial({
+            map: atlas.texture,
+            vertexColors: true,
+            transparent: false,
+            alphaTest: 0.5,
+            side: THREE.DoubleSide
+        });
+        const matGlowCross = new THREE.MeshLambertMaterial({
+            map: atlas.texture,
+            vertexColors: true,
+            transparent: false,
+            alphaTest: 0.5,
+            side: THREE.DoubleSide,
+            emissive: new THREE.Color(0xffffff),
+            emissiveMap: atlas.texture,
+            emissiveIntensity: 1.0
+        });
+        const matWater = new THREE.MeshLambertMaterial({
+            map: atlas.texture,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide
+        });
+        const matTransparent = new THREE.MeshLambertMaterial({
+            map: atlas.texture,
+            vertexColors: true,
+            transparent: true,
+            alphaTest: 0.5,
+            side: THREE.DoubleSide
+        });
+        this.sharedMaterials = [matOpaque, matCross, matGlowCross, matWater, matTransparent];
 
         // Chunk queues to avoid stuttering
         this.chunksToGenerate = [];
@@ -844,7 +922,20 @@ export class World {
                 chunk = this.chunksToBuild.pop();
             }
             if (chunk.dirty) {
-                const mesh = chunk.buildMesh(this.atlas, (wx, wy, wz) => this.getBlock(wx, wy, wz));
+                // Pass shared materials through atlas for convenience
+                this.atlas.sharedMaterials = this.sharedMaterials;
+                const neighborChunks = [
+                    [null, null, null],
+                    [null, null, null],
+                    [null, null, null]
+                ];
+                for (let dx = -1; dx <= 1; dx++) {
+                    for (let dz = -1; dz <= 1; dz++) {
+                        const key = this.getChunkKey(chunk.cx + dx, chunk.cz + dz);
+                        neighborChunks[dx + 1][dz + 1] = this.chunks.get(key) || null;
+                    }
+                }
+                const mesh = chunk.buildMesh(this.atlas, neighborChunks);
                 if (mesh && !mesh.parent) {
                     this.scene.add(mesh);
                 }
